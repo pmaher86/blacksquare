@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "blacksquare"
+version = "0.1.0"
+description = "A package for creating crossword puzzles"
+authors = ["Patrick Maher <pmaher86@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+numpy = "^1.19.4"
+tqdm = "^4.55.1"
+frozendict = "^1.2"
+puzpy = "^0.2.5"
+pdfkit = "^0.6.1"
+pypdf2 = "^1.26.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+pylint = "^2.6.0"
+black = "^20.8b1"
+rope = "^0.18.0"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
