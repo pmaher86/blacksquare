@@ -42,10 +42,6 @@ class Direction(enum.Enum):
         return f"<{self.value}>"
 
 
-# class _Black:
-#     def __eq__(self, other):
-
-
 black = "#"
 empty = " "
 across = Direction.ACROSS
