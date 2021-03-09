@@ -25,5 +25,5 @@ jobs:
         poetry install
     - name: Test with pytest
       run: |
-        poetry shell
+        source $(poetry env info --path)/bin/activate
         pytest
