@@ -25,6 +25,7 @@ jobs:
         poetry install
     - name: Install wkhtmltopdf
       run: |
+        sudo apt-get -y update
         sudo apt-get -y install wkhtmltopdf
     - name: Test with pytest
       run: |
