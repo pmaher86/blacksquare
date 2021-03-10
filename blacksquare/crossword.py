@@ -326,7 +326,7 @@ class Crossword:
         return copied
 
     def __repr__(self):
-        return self.pprint()
+        return self._text_grid()
 
     @classmethod
     def from_puz(cls, filename: str) -> "Crossword":
@@ -754,14 +754,17 @@ class Crossword:
             )
         ]
 
-    def pprint(self, numbers=False):
-        """Prints a formatted string representation of the crossword fill.
+    def _text_grid(self, numbers: bool = False) -> str:
+        """Returns a formatted string representation of the crossword fill.
 
         Args:
-            numbers (bool, optional): If True, prints the numbers in the grid rather
+            numbers (bool): If True, prints the numbers in the grid rather
                 than the letters. Defaults to False.
+
+        Returns:
+            str: A formatted string representation of the crossword.
         """
-        print("┌" + "───┬" * (self._num_cols - 1) + "───┐")
+        out_str = ["┌" + "───┬" * (self._num_cols - 1) + "───┐"]
         for i in range(self._num_rows):
             row_string = "│"
             for j in range(self._num_cols):
@@ -774,10 +777,20 @@ class Crossword:
                 else:
                     value = "   "
                 row_string += value + "│"
-            print(row_string)
+            out_str.append(row_string)
             if i < self._num_rows - 1:
-                print("├" + "───┼" * (self._num_cols - 1) + "───┤")
-        print("└" + "───┴" * (self._num_cols - 1) + "───┘")
+                out_str.append("├" + "───┼" * (self._num_cols - 1) + "───┤")
+        out_str.append("└" + "───┴" * (self._num_cols - 1) + "───┘")
+        return "\n".join(out_str)
+
+    def pprint(self, numbers: bool = False) -> str:
+        """Prints a formatted string representation of the crossword fill.
+
+        Args:
+            numbers (bool): If True, prints the numbers in the grid rather
+                than the letters. Defaults to False.
+        """
+        print(self._text_grid(numbers))
 
     def _repr_html_(self) -> str:
         return self._grid_html()
