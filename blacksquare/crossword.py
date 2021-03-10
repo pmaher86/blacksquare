@@ -208,7 +208,7 @@ class Word:
         Returns:
             np.ndarray: A numpy array of scores, corresponding to the input matches.
         """
-        word_scores = np.vectorize(dictionary.get)
+        word_scores = np.vectorize(dictionary.get, otypes=[float])
         open_indices = np.argwhere(np.array(list(self.value)) == empty).squeeze(1)
         crosses = self.get_crosses()
         letter_scores_per_index = {}
@@ -216,11 +216,16 @@ class Word:
             cross = crosses[index]
             cross_index = cross.get_crosses().index(self)
             cross_matches = cross._find_matches_np(dictionary)
-            cross_scores = word_scores(cross_matches)
-            match_letters = cross_matches.view("U1").reshape(len(cross_matches), -1)[
-                :, cross_index
-            ]
-            letter_scores_per_index[index] = sum_by_group(match_letters, cross_scores)
+            if len(cross_matches) > 0:
+                cross_scores = word_scores(cross_matches)
+                match_letters = cross_matches.view("U1").reshape(
+                    len(cross_matches), -1
+                )[:, cross_index]
+                letter_scores_per_index[index] = sum_by_group(
+                    match_letters, cross_scores
+                )
+            else:
+                letter_scores_per_index[index] = {}
 
         score_word_fn = np.vectorize(
             lambda w: np.prod(

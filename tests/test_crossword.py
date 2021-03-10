@@ -275,3 +275,10 @@ class TestCrosswordSolutions:
         solutions = xw.find_area_solutions((across, 1))
         assert len(solutions) == 1
         assert np.all(solutions[0].grid == xw.grid)
+
+    def test_unsolvable(self, xw):
+        xw[1, 0] = "J"
+        xw[1, 1] = empty
+        xw[0, 1] = "Q"
+        solutions = xw.find_area_solutions((down, 1))
+        assert solutions == []
