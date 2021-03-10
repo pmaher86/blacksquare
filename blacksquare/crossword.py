@@ -828,8 +828,8 @@ class Crossword:
             {rows}
         </tbody</table>
         """.format(
-            height=size_px * min(1, 1 / aspect_ratio),
-            width=size_px * min(1, aspect_ratio),
+            height=size_px * min(1, aspect_ratio),
+            width=size_px * min(1, 1 / aspect_ratio),
             rows="\n".join(row_elems),
             valign="top: 60%" if notebook else "bottom:0",
         )
