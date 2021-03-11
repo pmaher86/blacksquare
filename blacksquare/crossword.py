@@ -2,6 +2,7 @@ import copy
 import enum
 import io
 from typing import Dict, Iterator, List, Optional, Tuple, Union
+from secrets import token_hex
 
 import numpy as np
 import pdfkit
@@ -250,6 +251,7 @@ class Crossword:
         num_cols: Optional[int] = None,
         grid: Optional[Union[List[List[str]], np.ndarray]] = None,
         dictionary: Optional[Dictionary] = None,
+        display_size_px: int = 450,
     ):
         """Creates a new Crossword object.
 
@@ -264,6 +266,8 @@ class Crossword:
             dictionary (Union[Dict[str, float], List[str]], optional): A dictionary to
                 use as the default for finding matches. If None, Peter Broda's scored
                 wordlist will be used.
+            display_size_px (int): The size in pixels of the largest dimension of the
+                puzzle HTML rendering.
         """
         assert (num_rows is not None) ^ (
             grid is not None
@@ -290,6 +294,7 @@ class Crossword:
             self._dictionary = parse_dictionary(dictionary)
         else:
             self._dictionary = _DEFAULT_DICT
+        self.display_size_px = display_size_px
 
     def __getitem__(self, key) -> str:
         if isinstance(key, tuple) and len(key) == 2:
@@ -403,7 +408,7 @@ class Crossword:
                 {header_html}
             </div>
             <div style='position:absolute;left:50%;top:50%;transform: translate(-50%, -50%);'> 
-                {self._grid_html(notebook=False, size_px=600)}
+                {self._grid_html(size_px=600)}
             </div>
             </body></html>
         """
@@ -800,36 +805,52 @@ class Crossword:
     def _repr_html_(self) -> str:
         return self._grid_html()
 
-    def _grid_html(self, notebook: bool = True, size_px=450) -> str:
+    def _grid_html(self, size_px: Optional[int] = None) -> str:
+        """Returns an HTML rendering of the puzzle.
+
+        Args:
+            size_px (int): The size of the largest dimension in pixels. If None
+                provided, defaults to the display_size_px property.
+
+        Returns:
+            str: HTML to display the puzzle.
+        """
+        # Random suffix is a hack to ensure correct display in Jupyter settings
+        size_px = size_px or self.display_size_px
+        suffix = token_hex(4)
         row_elems = []
         for r in range(self._num_rows):
             cells = []
             for c in range(self._num_cols):
                 number = self._numbers[r, c]
                 cells.append(
-                    f"""<td class='grid{ " black" if self._grid[r, c] == black else ""}'>
-                        <div class='number'> {number if number else ""}</div>
-                        <div class='value'>{self._grid[r,c] if self._grid[r,c] != black else ""}</div>
+                    f"""<td class='xw{suffix}{ f" black{suffix}" if self._grid[r, c] == black else ""}'>
+                        <div class='number{suffix}'> {number if number else ""}</div>
+                        <div class='value{suffix}'>{self._grid[r,c] if self._grid[r,c] != black else ""}</div>
                     </td >"""
                 )
-            row_elems.append(
-                f"<tr style='background-color:white'>{''.join(cells)}</tr>"
-            )
+            row_elems.append(f"<tr class='xw{suffix}'>{''.join(cells)}</tr>")
         aspect_ratio = self.num_rows / self.num_cols
+        cell_size = size_px / max(self.num_rows, self.num_cols)
         return """
-        <style>
-        table.grid {{table-layout:fixed; background-color:white;width:{width}px;height:{height}px;}}
-        td.grid {{outline: 2px solid black;outline-offset: -1px;position: relative;font-family: Arial, Helvetica, sans-serif;}}
-        .number {{position: absolute;top: 2px;left: 2px;font-size: 0.8em;font-weight: normal;user-select: none;}}
-        .value {{position: absolute;{valign};left: 50%;font-weight: bold;font-size: 1.8em; transform: translate(-50%, 0%);}}
-        .black {{background-color: black;}}
+        <div>
+        <style scoped>
+        table.xw{suffix} {{table-layout:fixed; background-color:white;width:{width}px;height:{height}px;}}
+        td.xw{suffix} {{outline: 2px solid black;outline-offset: -1px;position: relative;font-family: Arial, Helvetica, sans-serif;}}
+        tr.xw{suffix} {{background-color: white !important;}}
+        .number{suffix} {{position: absolute;top: 2px;left: 2px;font-size: {num_font}px;font-weight: normal;user-select: none;}}
+        .value{suffix} {{position: absolute;bottom:0;left: 50%;font-weight: bold;font-size: {val_font}px; transform: translate(-50%, 0%);}}
+        .black{suffix} {{background-color: black;}}
         </style>
-        <table class='grid'><tbody>
+        <table class='xw{suffix}'><tbody>
             {rows}
         </tbody</table>
+        </div>
         """.format(
             height=size_px * min(1, aspect_ratio),
             width=size_px * min(1, 1 / aspect_ratio),
             rows="\n".join(row_elems),
-            valign="top: 60%" if notebook else "bottom:0",
+            suffix=suffix,
+            num_font=int(cell_size * 0.3),
+            val_font=int(cell_size * 0.6),
         )
