@@ -85,7 +85,8 @@ A main attraction are the utilities to help find valid fills. It implements an a
 'MCADAMS'
 # This retuns a list of new Crossword objects sorted by the dictionary scores of the words
 >>> matching_grids = xw.find_solutions([(down, 1), (down, 2)])
-# This returns a list of Crossword objects with everything contiguous to (down, 1) filled. Careful, this can be slow for large unfilled areas!
+# This returns a list of Crossword objects with everything contiguous to (down, 1) filled.
+# Careful, this can be slow for large unfilled areas!
 >>> matching_grids = xw.find_area_solutions((down, 1))
 ```
 
