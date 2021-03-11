@@ -91,7 +91,7 @@ A main attraction are the utilities to help find valid fills. It implements an a
 ```
 
 
-Custom dictionaries are supported and can be passed into the `Crossword` constructor or any of the solving methods. The default dictionary used is [Peter Broda's scored  wordlist](https://peterbroda.me/crosswords/wordlist/).
+Custom dictionaries are supported and can be passed into the `Crossword` constructor or any of the solving methods. The default dictionary used is [Peter Broda's scored wordlist](https://peterbroda.me/crosswords/wordlist/).
 ## Installation
 `pip install blacksquare`
 
