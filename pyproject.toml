@@ -3,6 +3,12 @@ name = "blacksquare"
 version = "0.1.0"
 description = "A package for creating crossword puzzles"
 authors = ["Patrick Maher <pmaher86@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/pmaher86/blacksquare"
+repository = "https://github.com/pmaher86/blacksquare"
+keywords = ["crossword"]
+include = ["LICENSE"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
