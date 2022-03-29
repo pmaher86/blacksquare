@@ -1,5 +1,6 @@
+from typing import Any, Dict
+
 import numpy as np
-from typing import Dict
 
 
 def sum_by_group(groups: np.ndarray, values: np.ndarray) -> Dict:
@@ -17,4 +18,16 @@ def sum_by_group(groups: np.ndarray, values: np.ndarray) -> Dict:
     sorted_values = values[sort_indices]
     unique_groups, unique_indices = np.unique(sorted_groups, return_index=True)
     group_values = np.split(sorted_values, unique_indices[1:])
-    return {group: values.sum() for group, values in zip(unique_groups, group_values)}
+    return {g: v.sum() for g, v in zip(unique_groups, group_values)}
+
+
+def is_intlike(x: Any) -> bool:
+    """A helper function for doing type checking on possibly-numpy integers.
+
+    Args:
+        x (Any): The input value.
+
+    Returns:
+        bool: True if the number is a python integer or a numpy integer.
+    """
+    return isinstance(x, (int, np.integer))
