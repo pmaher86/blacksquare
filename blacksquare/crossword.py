@@ -1,256 +1,35 @@
+from __future__ import annotations
+
 import copy
-import enum
 import io
-from typing import Dict, Iterator, List, Optional, Tuple, Union
 from secrets import token_hex
+from typing import Dict, Iterator, List, Optional, Union
 
 import numpy as np
 import pdfkit
 import puz
 import PyPDF2
-from frozendict import frozendict
 from tqdm.auto import tqdm
 
-from .dictionary import (
-    Dictionary,
-    cached_regex_match,
-    load_default_dictionary,
-    parse_dictionary,
-)
-from .utils import sum_by_group
+from blacksquare.cell import Cell
+from blacksquare.types import CellIndex, Direction, SpecialCellValue, WordIndex
+from blacksquare.utils import is_intlike
+from blacksquare.word import Word
+from blacksquare.word_list import DEFAULT_WORDLIST, WordList
 
-_DEFAULT_DICT = load_default_dictionary()
-
-
-class Direction(enum.Enum):
-    """An Enum representing the directions of words in a crossword."""
-
-    ACROSS = "Across"
-    DOWN = "Down"
-
-    @property
-    def opposite(self) -> "Direction":
-        if self == Direction.ACROSS:
-            return Direction.DOWN
-        else:
-            return Direction.ACROSS
-
-    def __repr__(self):
-        return f"<{self.value}>"
-
-
-black = "#"
-empty = " "
-across = Direction.ACROSS
-down = Direction.DOWN
-
-
-class Word:
-    """An object representing a single Word, with awares of the parent grid."""
-
-    def __init__(
-        self,
-        parent_crossword: "Crossword",
-        direction: Direction,
-        number: int,
-        clue: str = "",
-    ):
-        """Retuns a new Word object.
-
-        Args:
-            parent_crossword (Crossword): The parent crossword for the word.
-            direction (Direction): The direction of the word.
-            number (int): The ordinal number of the word.
-            clue (str, optional): The clue associated with the word. Defaults to "".
-        """
-        self.clue = clue
-        self._parent = parent_crossword
-        self._direction = direction
-        self._number = number
-
-    def __getitem__(self, key) -> str:
-        if not isinstance(key, int):
-            raise IndexError
-        return self.value[key]
-
-    def __setitem__(self, key, value):
-        if not isinstance(key, int):
-            raise IndexError
-        grid_indices = self._parent.get_indices(self.index)
-        self._parent[tuple(grid_indices[key])] = value
-
-    @property
-    def direction(self) -> Direction:
-        """Direction: The direction of the word."""
-        return self._direction
-
-    @property
-    def number(self) -> int:
-        """int: The number of the word."""
-        return self._number
-
-    @property
-    def index(self) -> Tuple[Direction, int]:
-        """Tuple[Direction, int]: The (direction, number) index of the word."""
-        return (self.direction, self.number)
-
-    @property
-    def length(self) -> int:
-        """int: The number of crossword cells in the word."""
-        return len(self.value)
-
-    @property
-    def value(self) -> str:
-        """str: The current fill value of the word"""
-        return "".join(self._parent.grid[self._parent._get_word_mask(self.index)])
-
-    @value.setter
-    def value(self, new_value: str):
-        self._parent[self.index] = new_value.upper()
-
-    def is_open(self) -> bool:
-        """Does the word contain any blank spaces.
-
-        Returns:
-            bool: True if any of the letters are blank.
-        """
-        return np.any(np.array(list(self.value)) == empty)
-
-    def get_crosses(self) -> List["Word"]:
-        """Returns the words that cross the current word.
-
-        Returns:
-            list[Word]: A list of Word objects corresponding to the crosses.
-        """
-        indices = self._parent.get_indices(self.index)
-        crosses = []
-        for index in indices:
-            words = self._parent.get_words_at_index(index)
-            for word in words:
-                if word.direction == self.direction.opposite:
-                    crosses.append(word)
-        return crosses
-
-    def _find_matches_np(self, dictionary: frozendict) -> np.ndarray:
-        """A helper method to find matches using caching.
-
-        Args:
-            dictionary (frozendict): The dictionary to use.
-
-        Returns:
-            np.ndarray: An array of matching words from the dictionary.
-        """
-        regex = "^" + "".join(["." if c == empty else c for c in self.value]) + "$"
-        return cached_regex_match(dictionary, regex)
-
-    def find_matches(
-        self,
-        sort_method="alpha",
-        dictionary: Optional[Dictionary] = None,
-        return_scores=False,
-    ) -> Union[List[str], List[Tuple[str, float]]]:
-        """Finds matches for the current word from a dictionary. Uses various methods
-        to rank the outputs:
-            * "alpha" sorts matches alphabetically
-            * "score" sorts matches by the score they have in the dictionary
-            * "cross_match" sorts matches by the product of the sume of available
-              matches at each open letter times the word's score.
-
-        "cross_match" is the slowest of the three methods but provides the most useful
-        results.
-
-        Args:
-            sort_method (str, optional): The method of sorting. Can be one of ("alpha",
-                "score", "cross_match"). Defaults to "alpha".
-            dictionary (Optional[Dictionary], optional): A dictionary to use. Can be a
-                dict with scores or a list of words (all scores will default to 1). If
-                None provided, the Crossword's default dict will be used.
-            return_scores (bool, optional): Whether to return the associated scores
-                with the words. Only used for "score" and "cross_match" sort methods.
-                Defaults to False.
-
-        Returns:
-            Union[List[str], List[Tuple[str, float]]]: If return_scores is False,
-                returns a list of matches sorted by the chosen criteria. If
-                return_scores is True, retuns a sorted list of (word, score) tuples.
-        """
-        dictionary = (
-            parse_dictionary(dictionary) if dictionary else self._parent._dictionary
-        )
-        matches = self._find_matches_np(dictionary)
-        if sort_method == "alpha":
-            scores = matches
-        elif sort_method == "score":
-            scores = [dictionary[m] for m in matches]
-        elif sort_method == "cross_match":
-            scores = self._cross_match_scores(matches, dictionary)
-        else:
-            raise ValueError("Invalid sort method")
-        sorted_matches = sorted(
-            [(w, s) for w, s in zip(matches, scores)],
-            key=lambda x: x[1],
-            reverse=sort_method != "alpha",
-        )
-        if return_scores and sort_method != "alpha":
-            return sorted_matches
-        else:
-            return [s[0] for s in sorted_matches]
-
-    def _cross_match_scores(
-        self, matches: np.ndarray, dictionary: frozendict
-    ) -> np.ndarray:
-        """Scores the list of matches uing the cross_match method. The heuristic aims
-        to maximize the number of good words allowed by the crosses.
-
-        Args:
-            matches (np.ndarray): A numpy array of matching words.
-            dictionary (frozendict): The parsed dictionary to use for cross matches.
-
-        Returns:
-            np.ndarray: A numpy array of scores, corresponding to the input matches.
-        """
-        word_scores = np.vectorize(dictionary.get, otypes=[float])
-        open_indices = np.argwhere(np.array(list(self.value)) == empty).squeeze(1)
-        crosses = self.get_crosses()
-        letter_scores_per_index = {}
-        for index in open_indices:
-            cross = crosses[index]
-            cross_index = cross.get_crosses().index(self)
-            cross_matches = cross._find_matches_np(dictionary)
-            if len(cross_matches) > 0:
-                cross_scores = word_scores(cross_matches)
-                match_letters = cross_matches.view("U1").reshape(
-                    len(cross_matches), -1
-                )[:, cross_index]
-                letter_scores_per_index[index] = sum_by_group(
-                    match_letters, cross_scores
-                )
-            else:
-                letter_scores_per_index[index] = {}
-
-        score_word_fn = np.vectorize(
-            lambda w: np.prod(
-                [letter_scores_per_index[i].get(w[i], 0) for i in open_indices]
-            )
-            * dictionary[w],
-            otypes=[float],
-        )
-        scores = score_word_fn(matches)
-        return scores
-
-    def __repr__(self):
-        return f'{self.direction.value} {self.number}: "{self.value.replace(" ", "?")}"'
+BLACK, EMPTY = SpecialCellValue.BLACK, SpecialCellValue.EMPTY
+ACROSS, DOWN = Direction.ACROSS, Direction.DOWN
 
 
 class Crossword:
-    """An object reprsenting a crossword puzzle."""
+    """An object representing a crossword puzzle."""
 
     def __init__(
         self,
         num_rows: Optional[int] = None,
         num_cols: Optional[int] = None,
         grid: Optional[Union[List[List[str]], np.ndarray]] = None,
-        dictionary: Optional[Dictionary] = None,
+        word_list: WordList = DEFAULT_WORDLIST,
         display_size_px: int = 450,
     ):
         """Creates a new Crossword object.
@@ -263,9 +42,8 @@ class Crossword:
             grid (Union[List[List[str]], np.ndarray]], optional): A 2-D array of
                 letters from which the grid will be initialized. Can be provided
                 instead of num_rows/num_cols.
-            dictionary (Union[Dict[str, float], List[str]], optional): A dictionary to
-                use as the default for finding matches. If None, Peter Broda's scored
-                wordlist will be used.
+            word_list (WordList): The word list to use by default when finding
+                solutions.
             display_size_px (int): The size in pixels of the largest dimension of the
                 puzzle HTML rendering.
         """
@@ -278,46 +56,48 @@ class Crossword:
                 self._num_cols = num_cols
             else:
                 self._num_cols = self._num_rows
-            self._grid = np.array(
-                [empty for _ in range(self._num_rows * self._num_cols)]
-            ).reshape((self._num_rows, self._num_cols))
+
+            shape = (self._num_rows, self._num_cols)
+            cells = [Cell(self, (i, j)) for i, j in np.ndindex(*shape)]
+            self._grid = np.array(cells, dtype=object).reshape(shape)
         elif grid is not None:
-            self._grid = np.array(grid, dtype="U1")
-            self._num_rows, self._num_cols = self._grid.shape
+            assert np.all([len(r) == len(grid[0]) for r in grid])
+            self._num_rows = len(grid)
+            self._num_cols = len(grid[0])
+            shape = (self._num_rows, self._num_cols)
+            cells = [Cell(self, (i, j), grid[i][j]) for i, j in np.ndindex(*shape)]
+            self._grid = np.array(cells, dtype=object).reshape(shape)
 
         self._numbers = np.zeros_like(self._grid, dtype=int)
         self._across = np.zeros_like(self._grid, dtype=int)
         self._down = np.zeros_like(self._grid, dtype=int)
         self._words = {}
         self._parse_grid()
-        if dictionary:
-            self._dictionary = parse_dictionary(dictionary)
-        else:
-            self._dictionary = _DEFAULT_DICT
+
+        self.word_list = word_list
         self.display_size_px = display_size_px
 
     def __getitem__(self, key) -> str:
         if isinstance(key, tuple) and len(key) == 2:
-            if isinstance(key[0], Direction) and isinstance(key[1], int):
+            if isinstance(key[0], Direction) and is_intlike(key[1]):
                 if key in [w.index for w in self.iterwords()]:
                     return self._words[key]
                 else:
                     raise IndexError
-            elif isinstance(key[0], int) and isinstance(key[1], int):
+            elif is_intlike(key[0]) and is_intlike(key[1]):
                 return self._grid[key]
         raise IndexError
 
     def __setitem__(self, key, value):
         if isinstance(key, tuple) and len(key) == 2:
-            if isinstance(key[0], Direction) and isinstance(key[1], int):
-                if not isinstance(value, str) or self[key].length != len(value):
+            if isinstance(key[0], Direction) and is_intlike(key[1]):
+                if not isinstance(value, str) or len(self[key]) != len(value):
                     raise ValueError
-                self._grid[self._get_word_mask(self[key].index)] = list(value.upper())
-            elif isinstance(key[0], int) and isinstance(key[1], int):
-                if not isinstance(value, str) or len(value) != 1:
-                    raise ValueError
-                needs_parse = self._grid[key] == black or value == black
-                self._grid[key] = value.upper()
+                for letter, cell in zip(value, self._grid[self._get_word_mask(key)]):
+                    cell.value = letter
+            elif is_intlike(key[0]) and is_intlike(key[1]):
+                needs_parse = self._grid[key] == BLACK or value == BLACK
+                self._grid[key].value = value
                 if needs_parse:
                     self._parse_grid()
             else:
@@ -327,19 +107,20 @@ class Crossword:
 
     def __deepcopy__(self, memo):
         copied = copy.copy(self)
-        copied._grid = np.copy(copied._grid)
+        copied._grid = copy.deepcopy(self._grid)
+        for cell in copied._grid.ravel():
+            cell._parent = copied
         # Update word references
-        copied._words = {
-            w.index: Word(copied, w.direction, w.number, w.clue)
-            for w in self._words.values()
-        }
+        copied._words = copy.deepcopy(self._words)
+        for word in copied._words.values():
+            word._parent = copied
         return copied
 
     def __repr__(self):
         return self._text_grid()
 
     @classmethod
-    def from_puz(cls, filename: str) -> "Crossword":
+    def from_puz(cls, filename: str) -> Crossword:
         """Creates a Crossword object from a .puz file.
 
         Args:
@@ -350,18 +131,18 @@ class Crossword:
         """
         puz_obj = puz.read(filename)
         grid = np.reshape(
-            list(puz_obj.solution.replace(".", black).replace("-", empty)),
+            list(puz_obj.solution),
             (puz_obj.height, puz_obj.width),
         )
         xw = cls(grid=grid)
         for cn in puz_obj.clue_numbering().across:
-            xw[across, cn["num"]].clue = cn["clue"]
+            xw[ACROSS, cn["num"]].clue = cn["clue"]
         for cn in puz_obj.clue_numbering().down:
-            xw[down, cn["num"]].clue = cn["clue"]
+            xw[DOWN, cn["num"]].clue = cn["clue"]
         return xw
 
-    def to_puz(self, filename: str):
-        """Ouputs a .puz file from the Crossword object.
+    def to_puz(self, filename: str) -> None:
+        """Outputs a .puz file from the Crossword object.
 
         Args:
             filename (str): The output path.
@@ -369,16 +150,14 @@ class Crossword:
         puz_obj = puz.Puzzle()
         puz_obj.height = self.num_rows
         puz_obj.width = self.num_cols
-        puz_obj.solution = (
-            "".join(self._grid.ravel()).replace(black, ".").replace(empty, "-")
-        )
-        fill_grid = self._grid.copy()
-        fill_grid[fill_grid != black] = "-"
-        fill_grid[fill_grid == black] = "."
-        puz_obj.fill = "".join(fill_grid.ravel())
+
+        char_array = np.array([cell.str for cell in self._grid.ravel()])
+        puz_obj.solution = "".join(char_array).replace(EMPTY.str, "-")
+        fill_grid = char_array.copy()
+        fill_grid[fill_grid != BLACK.str] = "-"
+        puz_obj.fill = "".join(fill_grid)
         sorted_words = sorted(
-            list(self.iterwords()),
-            key=lambda w: w.number + (0.5 if w.direction == down else 0),
+            list(self.iterwords()), key=lambda w: (w.number, w.direction)
         )
         puz_obj.clues = [w.clue for w in sorted_words]
         puz_obj.cksum_global = puz_obj.global_cksum()
@@ -390,8 +169,8 @@ class Crossword:
         self,
         filename: str,
         header: Optional[List[str]] = None,
-    ):
-        """Ouputs a .pdf file in NYT submission format from the Crossword object.
+    ) -> None:
+        """Outputs a .pdf file in NYT submission format from the Crossword object.
 
         Args:
             filename (str): The output path.
@@ -439,10 +218,10 @@ class Crossword:
             <body>
             <table><tbody>
             <tr><td colspan="3">ACROSS</td></tr>
-            {clue_rows(across)}
+            {clue_rows(ACROSS)}
             <tr><td></td></tr>
             <tr><td colspan="3">DOWN</td></tr>
-            {clue_rows(down)}
+            {clue_rows(DOWN)}
             </tbody></table>
             </body></html>
         """
@@ -475,46 +254,41 @@ class Crossword:
         return self._num_cols
 
     @property
-    def grid(self) -> np.ndarray:
-        """np.ndarray: The raw letter grid as a numpy array"""
-        return self._grid
-
-    @property
-    def clues(self) -> Dict[Tuple[Direction, int], str]:
-        """Dict[Tuple[Direction, int], str]: A dict mapping word index to clue."""
+    def clues(self) -> Dict[WordIndex, str]:
+        """Dict[WordIndex, str]: A dict mapping word index to clue."""
         return {index: w.clue for index, w in self._words.items()}
 
-    def get_symmetric_index(self, index: Tuple[int, int]) -> Tuple[int, int]:
+    def get_symmetric_index(self, index: CellIndex) -> CellIndex:
         """Gets the index of a symmetric grid cell. Useful for enforcing symmetry.
 
         Args:
-            index (Tuple[int, int]): The input index.
+            index (CellIndex): The input index.
 
         Returns:
-            Tuple[int, int]: The index of the cell symmetric to the input.
+            CellIndex: The index of the cell symmetric to the input.
         """
         return (self._num_rows - 1 - index[0], self._num_cols - 1 - index[1])
 
-    def _parse_grid(self):
+    def get_symmetric_word(self, word_index: WordIndex) -> Word:
+        raise NotImplementedError
+
+    def _parse_grid(self) -> None:
         """Updates all indices to reflect the state of the _grid property."""
         old_across, old_down = self._across, self._down
-        shifted_down = np.pad(self._grid, ((1, 0), (0, 0)), constant_values=black)[
-            :-1, :
-        ]
-        shifted_right = np.pad(self._grid, ((0, 0), (1, 0)), constant_values=black)[
-            :, :-1
-        ]
-        is_open = self._grid != black
-        new_num = (is_open) & ((shifted_down == black) | (shifted_right == black))
-        self._numbers = (
-            np.reshape(np.cumsum(np.ravel(new_num)), self._grid.shape) * new_num
+        padded = np.pad(self._grid, 1, constant_values=Cell(None, (None, None), BLACK))
+        shifted_down, shifted_right = padded[:-2, 1:-1], padded[1:-1, :-2]
+
+        is_open = ~np.equal(self._grid, BLACK)
+        needs_num = (is_open) & (
+            np.equal(shifted_down, BLACK) | np.equal(shifted_right, BLACK)
         )
+        self._numbers = np.reshape(np.cumsum(needs_num), self._grid.shape) * needs_num
         self._across = np.maximum.accumulate(
-            (shifted_right == black) * self._numbers, axis=1
+            np.equal(shifted_right, BLACK) * self._numbers, axis=1
         ) * (is_open)
-        self._down = np.maximum.accumulate((shifted_down == black) * self._numbers) * (
-            is_open
-        )
+        self._down = np.maximum.accumulate(
+            np.equal(shifted_down, BLACK) * self._numbers
+        ) * (is_open)
 
         affected_across = (
             set(self._across[old_across != self._across].flatten())
@@ -533,10 +307,10 @@ class Crossword:
                 removed.add(word_key)
 
         # Update words
-        for across_num in affected_across - {n for d, n in removed if d == across}:
-            self._words[(across, int(across_num))] = Word(self, across, int(across_num))
-        for down_num in affected_down - {n for d, n in removed if d == down}:
-            self._words[(down, int(down_num))] = Word(self, down, int(down_num))
+        for across_num in affected_across - {n for d, n in removed if d == ACROSS}:
+            self._words[(ACROSS, across_num)] = Word(self, ACROSS, across_num)
+        for down_num in affected_down - {n for d, n in removed if d == DOWN}:
+            self._words[(DOWN, down_num)] = Word(self, DOWN, down_num)
 
     def _get_direction_mask(self, direction: Direction) -> np.ndarray:
         """A boolean mask indicating the word number for each cell for a given
@@ -553,17 +327,20 @@ class Crossword:
         elif direction == Direction.DOWN:
             return self._down
 
-    def _get_word_mask(self, word_index: Tuple[Direction, int]) -> np.ndarray:
+    def _get_word_mask(self, word_index: WordIndex) -> np.ndarray:
         """A boolean mask that indicates which grid cells belong to a word.
 
         Args:
-            word_index (Tuple[Direction, int]): The index of the desired word.
+            word_index (WordIndex): The index of the desired word.
 
         Returns:
             np.ndarray: The grid indicating which cells are in the input word.
         """
         word = self[word_index]
         return self._get_direction_mask(word.direction) == word.number
+
+    def get_word_cells(self, word_index: WordIndex) -> List[Cell]:
+        return list(self._grid[self._get_word_mask(word_index)])
 
     def iterwords(self, direction: Optional[Direction] = None) -> Iterator[Word]:
         """Method for iterating over the words in the crossword.
@@ -574,60 +351,68 @@ class Crossword:
 
         Yields:
             Iterator[Word]: An iterator of Word objects. Ordered in standard crossword
-                fashion (ascending numbers, across then down).
+            fashion (ascending numbers, across then down).
         """
-        sorted_words = sorted(
-            self._words.values(),
-            key=lambda w: w.number
-            + (self._num_rows * self._num_cols) * int(w.direction == down),
-        )
-        for word in sorted_words:
-            if direction is None or direction == word.direction:
-                yield word
+        for word_index in sorted(self._words.keys()):
+            if direction is None or direction == self[word_index].direction:
+                yield (self._words[word_index])
 
-    def get_indices(self, word_index: Tuple[Direction, int]) -> List[Tuple[int, int]]:
+    def itercells(self) -> Iterator[Cell]:
+        """Method for iterating over the cells in the crossword.
+
+        Yields:
+            Iterator[Cell]: An iterator of Cell objects. Ordered left to right, top to
+            bottom.
+        """
+        for cell in self._grid.ravel():
+            yield cell
+
+    def get_indices(self, word_index: WordIndex) -> List[CellIndex]:
         """Gets the list of cell indices for a given word.
 
         Args:
-            word_index (Tuple[Direction, int]): The index of the desired word.
+            word_index (WordIndex): The index of the desired word.
 
         Returns:
-            List[Tuple[int, int]]: A list of cell indices that belong to the word.
+            List[CellIndex]: A list of cell indices that belong to the word.
         """
         return [
             (int(x[0]), int(x[1]))
             for x in np.argwhere(self._get_word_mask(word_index)).tolist()
         ]
 
-    def get_words_at_index(self, index: Tuple[int, int]) -> Optional[Tuple[Word, Word]]:
-        """Gets the two words (across and down) that pass through a cell.
+    def get_word_at_index(
+        self, index: CellIndex, direction: Direction
+    ) -> Optional[Word]:
+        """Gets the word that passes through a cell in a given direction.
 
         Args:
-            index (Tuple[int, int]): The index of the cell.
+            index (CellIndex): The index of the cell.
+            direction (Direction): The direction of the word.
 
         Returns:
-            Optional[Tuple[Word, Word]]: A tuple of the (across, down) words at the
-                index. If the index corresponds to a black square, this method returns
-                None.
+            Optional[Word]: The word passing through the index in the provided
+            direction. If the index corresponds to a black square, this method returns
+            None.
         """
-        if self[index] != black:
-            across_num, down_num = int(self._across[index]), int(self._down[index])
-            return self[across, across_num], self[down, down_num]
+        if self[index] != BLACK:
+            number = self._get_direction_mask(direction)[index]
+            return self[direction, number]
 
     def set_word(
-        self, word_index: Tuple[Direction, int], value: str, inplace: bool = True
-    ) -> Optional["Crossword"]:
-        """Sets a word to a new value. If inpace is set to False, returns a new
+        self, word_index: WordIndex, value: str, inplace: bool = True
+    ) -> Optional[Crossword]:
+        """Sets a word to a new value. If inplace is set to False, returns a new
         Crossword object rather than modifying the current one.
 
         Args:
-            word_index (Tuple[Direction, int]): The index of the word.
+            word_index (WordIndex): The index of the word.
             value (str): The new value of the word.
             inplace (bool): Whether to modify the current object.
 
         Returns:
             Optional[Crossword]: If inplace is False, a new Crossword object is
-                returned with new value.
+            returned with new value.
         """
         if inplace:
             self[word_index] = value
@@ -637,19 +422,19 @@ class Crossword:
             return new_crossword
 
     def set_cell(
-        self, index: Tuple[int, int], value: str, inplace: bool = True
-    ) -> Optional["Crossword"]:
+        self, index: CellIndex, value: str, inplace: bool = True
+    ) -> Optional[Crossword]:
         """Sets a cell to a new value. If inpace is set to False, returns a new
         Crossword object rather than modifying the current one.
 
         Args:
-            index (Tuple[int, int]): The index of the cell.
+            index (CellIndex): The index of the cell.
             value (str): The new value of the cell.
             inplace (bool): Whether to modify the current object.
 
         Returns:
             Optional[Crossword]: If inplace is False, a new Crossword object is
-                returned with new value.
+            returned with new value.
         """
         if inplace:
             self[index] = value
@@ -660,109 +445,99 @@ class Crossword:
 
     def find_solutions(
         self,
-        word_indices: List[Tuple[Direction, int]],
-        dictionary: Optional[Dictionary] = None,
-        beam_width: int = 100,
-    ) -> List["Crossword"]:
-        """Finds compatible solutions for a set of words. Uses a beam search algorithm.
+        word_indices: List[WordIndex],
+        word_list: Optional[WordList] = None,
+        beam_width=100,
+    ) -> List[Crossword]:
+        """Finds solutions for the provided words. Solutions are returned as new
+        crossword objects.
 
         Args:
-            word_indices (List[Tuple[Direction, int]]): The indices of the words to
-                search for solutions. Only these words are guaranteed to have valid
-                solutions in the output.
-            dictionary (Union[Dict[str, float], List[str]], optional): A dictionary to
-                use as for finding matches. If None, the crossword's default dictionary
-                is used.
-            beam_width (int): A parameter of the beam search algorithm that controls
-                how many solution branches to explore at once. Larger means a more
-                exhaustive (slower) search. Defaults to 100.
+            word_indices (List[WordIndex]): The words to consider.
+            word_list (Optional[WordList], optional): The word list to use. If None, the
+                default word list for the crossword will be use.
+            beam_width (int, optional): Search parameter, how many branches to consider.
+                Defaults to 100.
 
         Returns:
-            List[Crossword]: A list of Crossword objects containing solutions, sorted
-            by the product of the solution scores of input words.
+            List[Crossword]: A list of solutions, ranked by score.
         """
-        dictionary = parse_dictionary(dictionary) if dictionary else self._dictionary
-        sorted_indices = sorted(
-            word_indices, key=lambda i: len(self[i].find_matches(dictionary=dictionary))
-        )
+        word_list = self.word_list if word_list is None else word_list
         memory = [self]
+        sorted_indices = sorted(
+            word_indices, key=lambda i: len(word_list.find_matches(self[i]))
+        )
         for word_index in tqdm(sorted_indices):
             new_memory = []
             for xw in memory:
-                scored_matches = xw[word_index].find_matches(
-                    sort_method="cross_match", dictionary=dictionary, return_scores=True
-                )
-                new_memory += [
-                    (xw.set_word(word_index, match, inplace=False), score)
-                    for match, score in scored_matches[:beam_width]
-                ]
+                matches = xw[word_index].find_matches(word_list=word_list)
+                for word, score in zip(
+                    matches.words[:beam_width], matches.scores[:beam_width]
+                ):
+                    new_memory.append((xw, word, score))
             memory = [
-                k for k, v in sorted(new_memory, key=lambda x: x[1], reverse=True)
-            ][:beam_width]
+                xw.set_word(word_index, w, inplace=False)
+                for xw, w, s in sorted(new_memory, key=lambda x: x[2], reverse=True)[
+                    :beam_width
+                ]
+            ]
         scored_memory = [
-            (grid, np.product([dictionary[grid[idx].value] for idx in sorted_indices]))
-            for grid in memory
+            (
+                xw,
+                np.product(
+                    [word_list.get_score(xw[idx].value) for idx in word_indices]
+                ),
+            )
+            for xw in memory
         ]
         return [
             xw for xw, score in sorted(scored_memory, key=lambda x: x[1], reverse=True)
         ]
 
     def find_area_solutions(
-        self,
-        seed_word_index: Tuple[Direction, int],
-        dictionary: Optional[Dictionary] = None,
-        beam_width: int = 100,
-    ) -> List["Crossword"]:
-        """Finds compatible solutions for a contiguous unfilled area from a seed word.
-        Uses a beam search algorithm.
+        self, seed_word_index: WordIndex, word_list: Optional[WordList] = None
+    ) -> List[Crossword]:
+        """A method to solve entire contiguous areas of the crossword, starting from a
+        seed.
 
         Args:
-            seed_word_index (Tuple[Direction, int]): The starting word. The search will
-                expand to include all contiguous open words including crosses.
-            dictionary (Union[Dict[str, float], List[str]], optional): A dictionary to
-                use as for finding matches. If None, the crossword's default dictionary
-                is used.
-            beam_width (int): A parameter of the beam search algorithm that controls
-                how many solution branches to explore at once. Larger means a more
-                exhaustive (slower) search. Defaults to 100.
+            seed_word_index (WordIndex): The word to start from.
+            word_list (Optional[WordList], optional): The word list to use. If None, the
+                default word list for the crossword will be use.
 
         Returns:
-            List[Crossword]: A list of Crossword objects containing solutions, sorted
-                by the product of the solution scores of all words included in the
-                contiguous area.
+            List[Crossword]: A list of solutions, ranked by score.
         """
-        word_index_set = {seed_word_index}
-        while True:
-            new_word_index_set = copy.deepcopy(word_index_set)
-            for word_index in word_index_set:
-                new_word_index_set |= {
-                    cross.index
-                    for letter, cross in zip(
-                        self[word_index].value, self[word_index].get_crosses()
-                    )
-                    if cross.is_open() and letter == empty
-                }
-            if new_word_index_set == word_index_set:
-                break
-            word_index_set = new_word_index_set
-        solutions = self.find_solutions(list(word_index_set), dictionary, beam_width)
-        dictionary = parse_dictionary(dictionary) if dictionary else self._dictionary
-        scores = [
-            np.product(
-                [
-                    dictionary[solution[word_index].value]
-                    for word_index in word_index_set
-                ]
-            )
-            for solution in solutions
-        ]
+        word_list = self.word_list if word_list is None else word_list
+        open_words = self.get_contiguous_open_words(seed_word_index)
+        return self.find_solutions([w.index for w in open_words], word_list=word_list)
 
-        return [
-            solution
-            for solution, score in sorted(
-                zip(solutions, scores), key=lambda x: x[1], reverse=True
-            )
-        ]
+    def get_contiguous_open_words(self, seed_word_index: WordIndex) -> List[Word]:
+        """Gets the words representing a contiguous open area of the crossword grid.
+
+        Args:
+            seed_word_index (WordIndex): The word to start from.
+
+        Returns:
+            List[Word]: A list of all open words connected to the seed word.
+        """
+        open_words = {self[seed_word_index]}
+        while True:
+            adjacent_open_words = set()
+            for word in open_words:
+                adjacent_open_words.update(
+                    cross
+                    for cell, cross in zip(word.cells, word.crosses)
+                    if cross.is_open() and cell == EMPTY
+                )
+            new_open_words = open_words | adjacent_open_words
+            if new_open_words == open_words:
+                break
+            else:
+                open_words = new_open_words
+        return sorted(open_words, key=lambda w: w.index)
+
+    # TODO: Implement depth-first search.
 
     def _text_grid(self, numbers: bool = False) -> str:
         """Returns a formatted string representation of the crossword fill.
@@ -778,10 +553,10 @@ class Crossword:
         for i in range(self._num_rows):
             row_string = "│"
             for j in range(self._num_cols):
-                if self._grid[i, j] == black:
+                if self._grid[i, j] == BLACK:
                     value = "███"
                 elif not numbers:
-                    value = f" {self._grid[i,j]} "
+                    value = f" {self._grid[i,j].str} "
                 elif self._numbers[i, j]:
                     value = f"{self._numbers[i,j]: <3d}"
                 else:
@@ -824,9 +599,9 @@ class Crossword:
             for c in range(self._num_cols):
                 number = self._numbers[r, c]
                 cells.append(
-                    f"""<td class='xw{suffix}{ f" black{suffix}" if self._grid[r, c] == black else ""}'>
+                    f"""<td class='xw{suffix}{ f" black{suffix}" if self._grid[r, c] == BLACK else ""}'>
                         <div class='number{suffix}'> {number if number else ""}</div>
-                        <div class='value{suffix}'>{self._grid[r,c] if self._grid[r,c] != black else ""}</div>
+                        <div class='value{suffix}'>{self._grid[r,c].str if self._grid[r,c] != BLACK else ""}</div>
                     </td >"""
                 )
             row_elems.append(f"<tr class='xw{suffix}'>{''.join(cells)}</tr>")
