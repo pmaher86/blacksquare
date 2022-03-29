@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Literal, Tuple, Union
+from typing import List, Tuple, Union
 
 
 class Direction(Enum):
@@ -54,4 +54,4 @@ DOWN = Direction.DOWN
 
 WordIndex = Tuple[Direction, int]
 CellIndex = Tuple[int, int]
-CellValue = Union[str, Literal[SpecialCellValue.BLACK], Literal[SpecialCellValue.EMPTY]]
+CellValue = Union[str, SpecialCellValue]
