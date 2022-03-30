@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Union, Dict, List, TYPE_CHECKING
+from typing import Callable, Optional, Union, Dict, List, TYPE_CHECKING
 import numpy as np
 import pandas as pd
 import re
@@ -129,16 +129,21 @@ class WordList:
     def scores(self) -> List[float]:
         return list(self._scores)
 
-    def get_score(self, word: str) -> float:
+    def get_score(self, word: str) -> Optional[float]:
         """Return the score for a word.
 
         Args:
             word (str): The word to get the score for.
 
         Returns:
-            float: The score.
+            Optional[float]: The score. None if word is not in word list.
         """
-        return self.scores[self.words.index(word)]
+        words, scores = self._word_scores_by_length[len(word)]
+        score = scores[np.where(words == word)]
+        if len(score) == 1:
+            return score[0]
+        else:
+            return None
 
     @property
     def frame(self) -> pd.DataFrame:
