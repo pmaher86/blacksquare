@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Callable, Optional, Union, Dict, List, TYPE_CHECKING
+import io
 import numpy as np
 import pandas as pd
+import pkg_resources
 import re
 from collections import defaultdict
 
@@ -24,6 +26,7 @@ class WordList:
         source: Union[
             str,
             Path,
+            io.IOBase,
             List[str],
             Dict[str, Union[int, float]],
         ],
@@ -39,7 +42,11 @@ class WordList:
         Raises:
             ValueError: If input type is not recognized
         """
-        if isinstance(source, str) or isinstance(source, Path):
+        if (
+            isinstance(source, str)
+            or isinstance(source, Path)
+            or isinstance(source, io.IOBase)
+        ):
             df = pd.read_csv(
                 source,
                 sep=";",
@@ -230,4 +237,6 @@ def _normalize(word: str) -> str:
     return word.upper().replace(" ", "")
 
 
-DEFAULT_WORDLIST = WordList(Path(__file__).parent / "xwordlist.dict")
+# pkg_resources.resource_stream(__name__, "data/emperors.csv")
+# DEFAULT_WORDLIST = WordList(Path(__file__).parent / "xwordlist.dict")
+DEFAULT_WORDLIST = WordList(pkg_resources.resource_stream(__name__, "xwordlist.dict"))
