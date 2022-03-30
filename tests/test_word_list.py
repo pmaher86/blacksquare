@@ -47,8 +47,7 @@ class TestWordList:
 
     def test_get_score(self, word_list):
         assert word_list.get_score("BBB") == 0.1
-        with pytest.raises(ValueError):
-            word_list.get_score("XYZ")
+        assert word_list.get_score("XYZ") is None
 
 
 class TestMatchWordList:
