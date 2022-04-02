@@ -32,7 +32,7 @@ The interface is built to use Python's indexing syntax to express high-level cro
 └───┴───┴───┴───┴───┴───┴───┘
 # (direction, number) indexing for words
 >>> xw[ACROSS, 10] = 'DOE'
->>> xw[DOWN, 3] = xw[DOWN, 3].find_matches()[0]
+>>> xw[DOWN, 3] = xw[DOWN, 3].find_matches().words[0]
 >>> xw.pprint()
 ┌───┬───┬───┬───┬───┬───┬───┐
 │   │   │ A │   │   │   │   │
