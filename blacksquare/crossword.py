@@ -606,7 +606,6 @@ class Crossword:
         """
         console = Console()
         console.print(self._text_grid(numbers))
-        # print(self._text_grid(numbers))
 
     def _repr_mimebundle_(
         self, include: Iterable[str], exclude: Iterable[str], **kwargs: Any
