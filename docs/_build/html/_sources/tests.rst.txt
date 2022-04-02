@@ -1,0 +1,53 @@
+tests package
+=============
+
+Submodules
+----------
+
+tests.conftest module
+---------------------
+
+.. automodule:: tests.conftest
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tests.test\_cell module
+-----------------------
+
+.. automodule:: tests.test_cell
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tests.test\_crossword module
+----------------------------
+
+.. automodule:: tests.test_crossword
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tests.test\_word module
+-----------------------
+
+.. automodule:: tests.test_word
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+tests.test\_word\_list module
+-----------------------------
+
+.. automodule:: tests.test_word_list
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Module contents
+---------------
+
+.. automodule:: tests
+   :members:
+   :undoc-members:
+   :show-inheritance:
