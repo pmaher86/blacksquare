@@ -41,7 +41,7 @@ class SpecialCellValue(Enum):
     @property
     def str(self) -> str:
         if self == SpecialCellValue.BLACK:
-            return "."
+            return "█"
         elif self == SpecialCellValue.EMPTY:
             return " "
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from blacksquare.types import CellIndex, CellValue, Direction, SpecialCellValue
 
@@ -44,16 +44,20 @@ class Cell:
     def value(self) -> CellValue:
         return self._value
 
+    @value.setter
+    def value(self, new_value):
+        self._value = _parse_cell_input(new_value)
+
     @property
     def index(self) -> CellIndex:
         return self._index
 
+    @property
+    def number(self) -> Optional[int]:
+        return self._parent.get_cell_number(self._index)
+
     def get_twin(self) -> Cell:
         raise NotImplementedError
-
-    @value.setter
-    def value(self, new_value):
-        self._value = _parse_cell_input(new_value)
 
     @property
     def str(self) -> str:

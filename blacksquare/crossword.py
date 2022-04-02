@@ -3,12 +3,15 @@ from __future__ import annotations
 import copy
 import io
 from secrets import token_hex
-from typing import Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
 
 import numpy as np
 import pdfkit
 import puz
 import PyPDF2
+import rich.box
+from rich.console import Console
+from rich.table import Table
 from tqdm.auto import tqdm
 
 from blacksquare.cell import Cell
@@ -117,7 +120,10 @@ class Crossword:
         return copied
 
     def __repr__(self):
-        return self._text_grid()
+        longest_filled_word = max(
+            self.iterwords(), key=lambda w: len(w) if not w.is_open() else 0
+        )
+        return f'Crossword("{longest_filled_word.value}")'
 
     @classmethod
     def from_puz(cls, filename: str) -> Crossword:
@@ -147,14 +153,20 @@ class Crossword:
         Args:
             filename (str): The output path.
         """
+        puz_black, puz_empty = ".", "-"
         puz_obj = puz.Puzzle()
         puz_obj.height = self.num_rows
         puz_obj.width = self.num_cols
 
         char_array = np.array([cell.str for cell in self._grid.ravel()])
-        puz_obj.solution = "".join(char_array).replace(EMPTY.str, "-")
+        puz_obj.solution = (
+            "".join(char_array)
+            .replace(EMPTY.str, puz_empty)
+            .replace(BLACK.str, puz_black)
+        )
         fill_grid = char_array.copy()
-        fill_grid[fill_grid != BLACK.str] = "-"
+        fill_grid[fill_grid != BLACK.str] = puz_empty
+        fill_grid[fill_grid == BLACK.str] = puz_black
         puz_obj.fill = "".join(fill_grid)
         sorted_words = sorted(
             list(self.iterwords()), key=lambda w: (w.number, w.direction)
@@ -341,6 +353,19 @@ class Crossword:
 
     def get_word_cells(self, word_index: WordIndex) -> List[Cell]:
         return list(self._grid[self._get_word_mask(word_index)])
+
+    def get_cell_number(self, cell_index: CellIndex) -> Optional[int]:
+        """Gets the crossword numeral at a given cell, if it exists.
+
+        Args:
+            cell_index (CellIndex): The index of the cell.
+
+        Returns:
+            Optional[int]: The crossword number in that cell, if any.
+        """
+        number = self._numbers[cell_index]
+        if number:
+            return number
 
     def iterwords(self, direction: Optional[Direction] = None) -> Iterator[Word]:
         """Method for iterating over the words in the crossword.
@@ -539,34 +564,38 @@ class Crossword:
 
     # TODO: Implement depth-first search.
 
-    def _text_grid(self, numbers: bool = False) -> str:
-        """Returns a formatted string representation of the crossword fill.
+    def _text_grid(self, numbers: bool = False) -> Table:
+        """Returns a rich Table that displays the crossword.
 
         Args:
             numbers (bool): If True, prints the numbers in the grid rather
                 than the letters. Defaults to False.
 
         Returns:
-            str: A formatted string representation of the crossword.
+            Table: A Table object containing the crossword.
         """
-        out_str = ["┌" + "───┬" * (self._num_cols - 1) + "───┐"]
-        for i in range(self._num_rows):
-            row_string = "│"
-            for j in range(self._num_cols):
-                if self._grid[i, j] == BLACK:
-                    value = "███"
-                elif not numbers:
-                    value = f" {self._grid[i,j].str} "
-                elif self._numbers[i, j]:
-                    value = f"{self._numbers[i,j]: <3d}"
+        table = Table(
+            box=rich.box.SQUARE,
+            show_header=False,
+            show_lines=True,
+            width=4 * self.num_cols + 1,
+            padding=0,
+        )
+        for c in range(self.num_cols):
+            table.add_column(justify="left")
+        for row in self._grid:
+            strings = []
+            for cell in row:
+                if cell == SpecialCellValue.BLACK:
+                    strings.append(cell.str * 3)
                 else:
-                    value = "   "
-                row_string += value + "│"
-            out_str.append(row_string)
-            if i < self._num_rows - 1:
-                out_str.append("├" + "───┼" * (self._num_cols - 1) + "───┤")
-        out_str.append("└" + "───┴" * (self._num_cols - 1) + "───┘")
-        return "\n".join(out_str)
+                    if numbers:
+                        strings.append(str(cell.number) if cell.number else "")
+                    else:
+                        strings.append(f"{'^' if cell.number else ' '}{cell.str}")
+            table.add_row(*strings)
+
+        return table
 
     def pprint(self, numbers: bool = False) -> str:
         """Prints a formatted string representation of the crossword fill.
@@ -575,10 +604,31 @@ class Crossword:
             numbers (bool): If True, prints the numbers in the grid rather
                 than the letters. Defaults to False.
         """
-        print(self._text_grid(numbers))
+        console = Console()
+        console.print(self._text_grid(numbers))
+        # print(self._text_grid(numbers))
 
-    def _repr_html_(self) -> str:
-        return self._grid_html()
+    def _repr_mimebundle_(
+        self, include: Iterable[str], exclude: Iterable[str], **kwargs: Any
+    ) -> Dict[str, str]:
+        """A display method that handles different IPython environments.
+
+        Args:
+            include (Iterable[str]): MIME types to include.
+            exclude (Iterable[str]): MIME types to exclude.
+
+        Returns:
+            Dict[str, str]: A dict containing the outputs.
+        """
+
+        html = self._grid_html()
+        text = self._text_grid()._repr_mimebundle_([], [])["text/plain"]
+        data = {"text/plain": text, "text/html": html}
+        if include:
+            data = {k: v for (k, v) in data.items() if k in include}
+        if exclude:
+            data = {k: v for (k, v) in data.items() if k not in exclude}
+        return data
 
     def _grid_html(self, size_px: Optional[int] = None) -> str:
         """Returns an HTML rendering of the puzzle.
@@ -590,8 +640,8 @@ class Crossword:
         Returns:
             str: HTML to display the puzzle.
         """
-        # Random suffix is a hack to ensure correct display in Jupyter settings
         size_px = size_px or self.display_size_px
+        # Random suffix is a hack to ensure correct display in Jupyter settings
         suffix = token_hex(4)
         row_elems = []
         for r in range(self._num_rows):
