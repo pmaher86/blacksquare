@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Callable, Optional, Union, Dict, List, TYPE_CHECKING
 import io
+import re
+from collections import defaultdict
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
+
 import numpy as np
 import pandas as pd
 import pkg_resources
-import re
-from collections import defaultdict
 
-from blacksquare.utils import sum_by_group
 from blacksquare.types import SpecialCellValue
-
+from blacksquare.utils import sum_by_group
 
 if TYPE_CHECKING:
     from blacksquare.word import Word
@@ -237,6 +237,4 @@ def _normalize(word: str) -> str:
     return word.upper().replace(" ", "")
 
 
-# pkg_resources.resource_stream(__name__, "data/emperors.csv")
-# DEFAULT_WORDLIST = WordList(Path(__file__).parent / "xwordlist.dict")
 DEFAULT_WORDLIST = WordList(pkg_resources.resource_stream(__name__, "xwordlist.dict"))
