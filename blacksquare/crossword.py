@@ -16,6 +16,7 @@ from tqdm.auto import tqdm
 
 from blacksquare.cell import Cell
 from blacksquare.types import CellIndex, Direction, SpecialCellValue, WordIndex
+from blacksquare.symmetry import Symmetry
 from blacksquare.utils import is_intlike
 from blacksquare.word import Word
 from blacksquare.word_list import DEFAULT_WORDLIST, WordList
@@ -32,6 +33,7 @@ class Crossword:
         num_rows: Optional[int] = None,
         num_cols: Optional[int] = None,
         grid: Optional[Union[List[List[str]], np.ndarray]] = None,
+        symmetry: Optional[Symmetry] = Symmetry.ROTATIONAL,
         word_list: WordList = DEFAULT_WORDLIST,
         display_size_px: int = 450,
     ):
@@ -71,6 +73,9 @@ class Crossword:
             cells = [Cell(self, (i, j), grid[i][j]) for i, j in np.ndindex(*shape)]
             self._grid = np.array(cells, dtype=object).reshape(shape)
 
+        if symmetry.requires_square and self._num_rows != self._num_cols:
+            raise ValueError(f"{symmetry.value} symmetry requires a square grid.")
+
         self._numbers = np.zeros_like(self._grid, dtype=int)
         self._across = np.zeros_like(self._grid, dtype=int)
         self._down = np.zeros_like(self._grid, dtype=int)
@@ -79,11 +84,12 @@ class Crossword:
 
         self.word_list = word_list
         self.display_size_px = display_size_px
+        self.symmetry = symmetry
 
     def __getitem__(self, key) -> str:
         if isinstance(key, tuple) and len(key) == 2:
             if isinstance(key[0], Direction) and is_intlike(key[1]):
-                if key in [w.index for w in self.iterwords()]:
+                if key in self._words:
                     return self._words[key]
                 else:
                     raise IndexError
@@ -270,7 +276,9 @@ class Crossword:
         """Dict[WordIndex, str]: A dict mapping word index to clue."""
         return {index: w.clue for index, w in self._words.items()}
 
-    def get_symmetric_index(self, index: CellIndex) -> CellIndex:
+    def get_symmetric_cell_index(
+        self, index: CellIndex
+    ) -> Optional[Union[CellIndex, List[CellIndex]]]:
         """Gets the index of a symmetric grid cell. Useful for enforcing symmetry.
 
         Args:
@@ -279,10 +287,32 @@ class Crossword:
         Returns:
             CellIndex: The index of the cell symmetric to the input.
         """
-        return (self._num_rows - 1 - index[0], self._num_cols - 1 - index[1])
+        if not self.symmetry:
+            return
+        elif self.symmetry.is_multi_image:
+            results = self.symmetry.apply(self._grid)
+            return list({r.grid[index].index for r in results})
+        else:
+            return self.symmetry.apply(self._grid).grid[index].index
 
-    def get_symmetric_word(self, word_index: WordIndex) -> Word:
-        raise NotImplementedError
+    def get_symmetric_word_index(
+        self, word_index: WordIndex
+    ) -> Optional[Union[WordIndex, List[WordIndex]]]:
+        dir = word_index[0]
+        mask = self._get_word_mask(word_index)
+        if not self.symmetry:
+            return
+        elif self.symmetry.is_multi_image:
+            results = self.symmetry.apply(self._grid)
+            new_indices = set()
+            for result in results:
+                new_dir = dir.opposite if result.word_direction_rotated else dir
+                new_indices.add(result.grid[mask][0].get_parent_word(new_dir).index)
+            return list(new_indices)
+        else:
+            result = self.symmetry.apply(self._grid)
+            new_dir = dir.opposite if result.word_direction_rotated else dir
+            return result.grid[mask][0].get_parent_word(new_dir).index
 
     def _parse_grid(self) -> None:
         """Updates all indices to reflect the state of the _grid property."""
@@ -563,6 +593,28 @@ class Crossword:
         return sorted(open_words, key=lambda w: w.index)
 
     # TODO: Implement depth-first search.
+
+    def fill_dfs(self) -> Optional[Crossword]:
+        def recurse_solve(xw: Crossword, word_list: WordList) -> Optional[Crossword]:
+            open_words = [w for w in xw.iterwords() if w.is_open()]
+            print(len(open_words))
+            if len(open_words) == 0:
+                return xw
+            most_constrained_word = min(
+                open_words, key=lambda w: len(word_list.find_matches(w))
+            )
+            matches = most_constrained_word.find_matches()
+            if len(matches) == 0:
+                return
+            else:
+                new_xw = copy.deepcopy(xw)
+                for match in matches.words:
+                    new_xw[most_constrained_word.index] = match
+                    fill = recurse_solve(new_xw, word_list)
+                    if fill:
+                        return fill
+
+        return recurse_solve(self, self.word_list)
 
     def _text_grid(self, numbers: bool = False) -> Table:
         """Returns a rich Table that displays the crossword.

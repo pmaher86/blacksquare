@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Union
 
 import numpy as np
 
@@ -95,8 +95,15 @@ class Word:
         """
         return [cell.get_parent_word(self.direction.opposite) for cell in self.cells]
 
-    def get_twin(self):
-        raise NotImplementedError
+    @property
+    def symmetric_image(self) -> Optional[Union[Word, List[Word]]]:
+        result = self._parent.get_symmetric_word_index(self.index)
+        if not result:
+            return
+        elif isinstance(result, list):
+            return [self._parent[i] for i in result]
+        else:
+            return self._parent[result]
 
     def find_matches(self, word_list: Optional[WordList] = None) -> MatchWordList:
         """Finds matches for the word, ranking matches by how many valid crosses they
