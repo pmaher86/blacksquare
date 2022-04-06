@@ -619,28 +619,6 @@ class Crossword:
 
     # TODO: Implement depth-first search.
 
-    def fill_dfs(self) -> Optional[Crossword]:
-        def recurse_solve(xw: Crossword, word_list: WordList) -> Optional[Crossword]:
-            open_words = [w for w in xw.iterwords() if w.is_open()]
-            print(len(open_words))
-            if len(open_words) == 0:
-                return xw
-            most_constrained_word = min(
-                open_words, key=lambda w: len(word_list.find_matches(w))
-            )
-            matches = most_constrained_word.find_matches()
-            if len(matches) == 0:
-                return
-            else:
-                new_xw = copy.deepcopy(xw)
-                for match in matches.words:
-                    new_xw[most_constrained_word.index] = match
-                    fill = recurse_solve(new_xw, word_list)
-                    if fill:
-                        return fill
-
-        return recurse_solve(self, self.word_list)
-
     def _text_grid(self, numbers: bool = False) -> Table:
         """Returns a rich Table that displays the crossword.
 
