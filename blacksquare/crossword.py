@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import io
 from secrets import token_hex
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import pdfkit
@@ -15,6 +15,7 @@ from rich.table import Table
 from tqdm.auto import tqdm
 
 from blacksquare.cell import Cell
+from blacksquare.symmetry import Symmetry
 from blacksquare.types import CellIndex, Direction, SpecialCellValue, WordIndex
 from blacksquare.utils import is_intlike
 from blacksquare.word import Word
@@ -32,6 +33,7 @@ class Crossword:
         num_rows: Optional[int] = None,
         num_cols: Optional[int] = None,
         grid: Optional[Union[List[List[str]], np.ndarray]] = None,
+        symmetry: Optional[Symmetry] = Symmetry.ROTATIONAL,
         word_list: WordList = DEFAULT_WORDLIST,
         display_size_px: int = 450,
     ):
@@ -71,6 +73,9 @@ class Crossword:
             cells = [Cell(self, (i, j), grid[i][j]) for i, j in np.ndindex(*shape)]
             self._grid = np.array(cells, dtype=object).reshape(shape)
 
+        if symmetry.requires_square and self._num_rows != self._num_cols:
+            raise ValueError(f"{symmetry.value} symmetry requires a square grid.")
+
         self._numbers = np.zeros_like(self._grid, dtype=int)
         self._across = np.zeros_like(self._grid, dtype=int)
         self._down = np.zeros_like(self._grid, dtype=int)
@@ -79,11 +84,12 @@ class Crossword:
 
         self.word_list = word_list
         self.display_size_px = display_size_px
+        self.symmetry = symmetry
 
     def __getitem__(self, key) -> str:
         if isinstance(key, tuple) and len(key) == 2:
             if isinstance(key[0], Direction) and is_intlike(key[1]):
-                if key in [w.index for w in self.iterwords()]:
+                if key in self._words:
                     return self._words[key]
                 else:
                     raise IndexError
@@ -99,10 +105,21 @@ class Crossword:
                 for letter, cell in zip(value, self._grid[self._get_word_mask(key)]):
                     cell.value = letter
             elif is_intlike(key[0]) and is_intlike(key[1]):
-                needs_parse = self._grid[key] == BLACK or value == BLACK
-                self._grid[key].value = value
-                if needs_parse:
+                if value == BLACK:
+                    self._grid[key].value = BLACK
+                    images = self.get_symmetric_cell_index(key, force_list=True)
+                    for image in images:
+                        self._grid[image].value = BLACK
                     self._parse_grid()
+                elif self._grid[key] == BLACK:
+                    self._grid[key].value = value
+                    images = self.get_symmetric_cell_index(key, force_list=True)
+                    for image in images:
+                        if self._grid[image].value == BLACK:
+                            self._grid[image].value = EMPTY
+                    self._parse_grid()
+                else:
+                    self._grid[key].value = value
             else:
                 raise IndexError
         else:
@@ -270,7 +287,9 @@ class Crossword:
         """Dict[WordIndex, str]: A dict mapping word index to clue."""
         return {index: w.clue for index, w in self._words.items()}
 
-    def get_symmetric_index(self, index: CellIndex) -> CellIndex:
+    def get_symmetric_cell_index(
+        self, index: CellIndex, force_list: bool = False
+    ) -> Optional[Union[CellIndex, List[CellIndex]]]:
         """Gets the index of a symmetric grid cell. Useful for enforcing symmetry.
 
         Args:
@@ -279,10 +298,34 @@ class Crossword:
         Returns:
             CellIndex: The index of the cell symmetric to the input.
         """
-        return (self._num_rows - 1 - index[0], self._num_cols - 1 - index[1])
+        if not self.symmetry:
+            return [] if force_list else None
+        elif self.symmetry.is_multi_image:
+            results = self.symmetry.apply(self._grid)
+            return list({r.grid[index].index for r in results})
+        else:
+            image = self.symmetry.apply(self._grid).grid[index].index
+            return [image] if force_list else image
 
-    def get_symmetric_word(self, word_index: WordIndex) -> Word:
-        raise NotImplementedError
+    def get_symmetric_word_index(
+        self, word_index: WordIndex, force_list: bool = False
+    ) -> Optional[Union[WordIndex, List[WordIndex]]]:
+        dir = word_index[0]
+        mask = self._get_word_mask(word_index)
+        if not self.symmetry:
+            return [] if force_list else None
+        elif self.symmetry.is_multi_image:
+            results = self.symmetry.apply(self._grid)
+            new_indices = set()
+            for result in results:
+                new_dir = dir.opposite if result.word_direction_rotated else dir
+                new_indices.add(result.grid[mask][0].get_parent_word(new_dir).index)
+            return list(new_indices)
+        else:
+            result = self.symmetry.apply(self._grid)
+            new_dir = dir.opposite if result.word_direction_rotated else dir
+            image = result.grid[mask][0].get_parent_word(new_dir).index
+            return [image] if force_list else image
 
     def _parse_grid(self) -> None:
         """Updates all indices to reflect the state of the _grid property."""
@@ -291,38 +334,50 @@ class Crossword:
         shifted_down, shifted_right = padded[:-2, 1:-1], padded[1:-1, :-2]
 
         is_open = ~np.equal(self._grid, BLACK)
-        needs_num = (is_open) & (
-            np.equal(shifted_down, BLACK) | np.equal(shifted_right, BLACK)
+        starts_down, starts_across = (
+            np.equal(x, BLACK) for x in (shifted_down, shifted_right)
         )
+        needs_num = (is_open) & (starts_down | starts_across)
         self._numbers = np.reshape(np.cumsum(needs_num), self._grid.shape) * needs_num
-        self._across = np.maximum.accumulate(
-            np.equal(shifted_right, BLACK) * self._numbers, axis=1
-        ) * (is_open)
-        self._down = np.maximum.accumulate(
-            np.equal(shifted_down, BLACK) * self._numbers
-        ) * (is_open)
+        self._across = (
+            np.maximum.accumulate(starts_across * self._numbers, axis=1) * is_open
+        )
+        self._down = np.maximum.accumulate(starts_down * self._numbers) * is_open
 
-        affected_across = (
-            set(self._across[old_across != self._across].flatten())
-            | set(old_across[old_across != self._across].flatten())
-        ) - {0}
-        affected_down = (
-            set(self._down[old_down != self._down].flatten())
-            | set(old_down[old_down != self._down].flatten())
-        ) - {0}
-        # Remove words that don't exist anymore
-        removed = set()
-        curr_word_keys = list(self._words.keys())
-        for word_key in curr_word_keys:
-            if word_key[1] not in self._get_direction_mask(word_key[0]):
-                del self._words[word_key]
-                removed.add(word_key)
+        def get_cells_to_nums(ordered_nums: np.ndarray) -> Dict[Tuple[int, ...], int]:
+            flattened = ordered_nums.ravel()
+            word_divs = np.flatnonzero(np.diff(flattened, prepend=-1))
+            nums = flattened[word_divs]
+            groups = np.split(np.arange(len(flattened)), word_divs[1:])
+            return dict(zip(map(tuple, groups), nums))
 
-        # Update words
-        for across_num in affected_across - {n for d, n in removed if d == ACROSS}:
-            self._words[(ACROSS, across_num)] = Word(self, ACROSS, across_num)
-        for down_num in affected_down - {n for d, n in removed if d == DOWN}:
-            self._words[(DOWN, down_num)] = Word(self, DOWN, down_num)
+        def get_new_to_old_map(old: np.ndarray, new: np.ndarray) -> Dict[int, int]:
+            old_cells_nums = get_cells_to_nums(old)
+            new_cells_nums = get_cells_to_nums(new)
+            new_to_old = {}
+            for cells in set(old_cells_nums.keys()).intersection(new_cells_nums.keys()):
+                if old_cells_nums[cells] and new_cells_nums[cells]:
+                    new_to_old[new_cells_nums[cells]] = old_cells_nums[cells]
+            return new_to_old
+
+        across_new_old_map = get_new_to_old_map(old_across, self._across)
+        down_new_old_map = get_new_to_old_map(old_down.T, self._down.T)
+
+        new_words = {}
+        for across_num in set(self._across.ravel()) - {0}:
+            old_word = self._words.get((ACROSS, across_new_old_map.get(across_num)))
+            new_words[(ACROSS, across_num)] = Word(
+                self,
+                ACROSS,
+                across_num,
+                clue=old_word.clue if old_word is not None else "",
+            )
+        for down_num in set(self._down.ravel()) - {0}:
+            old_word = self._words.get((DOWN, down_new_old_map.get(down_num)))
+            new_words[(DOWN, down_num)] = Word(
+                self, DOWN, down_num, clue=old_word.clue if old_word is not None else ""
+            )
+        self._words = new_words
 
     def _get_direction_mask(self, direction: Direction) -> np.ndarray:
         """A boolean mask indicating the word number for each cell for a given

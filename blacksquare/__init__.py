@@ -1,4 +1,5 @@
 from blacksquare.crossword import Crossword
+from blacksquare.symmetry import Symmetry
 from blacksquare.types import Direction, SpecialCellValue
 from blacksquare.word_list import DEFAULT_WORDLIST, WordList
 

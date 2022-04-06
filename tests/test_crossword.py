@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from blacksquare import ACROSS, BLACK, DOWN, EMPTY, Crossword, WordList
+from blacksquare.symmetry import Symmetry
 
 
 class TestCrosswordIndexing:
@@ -66,12 +67,17 @@ class TestParsing:
         xw[0, 0] = " "
         assert set([w.index for w in xw.iterwords()]) != old_indices
 
-    def test_clues_after_reparse(self, xw):
-        xw[ACROSS, 5].clue = "clue to forget"
-        xw[DOWN, 1].clue = "clue to keep"
-        xw[2, 3] = EMPTY
-        assert xw[ACROSS, 5].clue == ""
-        assert xw[DOWN, 1].clue == "clue to keep"
+    def test_clues_after_reparse(self, xw: Crossword):
+        xw[ACROSS, 5].clue = "across to forget"
+        xw[ACROSS, 4].clue = "across to keep"
+        xw[DOWN, 4].clue = "down to keep"
+        xw[DOWN, 2].clue = "down to forget"
+        xw[2, 2] = BLACK
+        assert xw[ACROSS, 3].clue == "across to keep"
+        assert xw[DOWN, 3].clue == "down to keep"
+        for k, c in xw.clues.items():
+            if k not in ((ACROSS, 3), (DOWN, 3)):
+                assert c == ""
 
 
 class TestConversion:
@@ -92,10 +98,10 @@ class TestConversion:
 
 
 class TestCrosswordProperties:
-    def test_symmetric_index(self):
+    def test_symmetric_cell_index(self):
         xw = Crossword(5, 7)
-        assert xw.get_symmetric_index((0, 1)) == (4, 5)
-        assert xw.get_symmetric_index((2, 3)) == (2, 3)
+        assert xw.get_symmetric_cell_index((0, 1)) == (4, 5)
+        assert xw.get_symmetric_cell_index((2, 3)) == (2, 3)
 
     def test_num_rows_cols(self):
         xw = Crossword(5, 7)
@@ -175,3 +181,8 @@ class TestCrosswordSolutions:
         xw[0, 1] = "Q"
         solutions = xw.find_area_solutions((DOWN, 1))
         assert solutions == []
+
+
+def test_symmetry_requirements():
+    with pytest.raises(ValueError):
+        Crossword(5, 7, symmetry=Symmetry.FULL)

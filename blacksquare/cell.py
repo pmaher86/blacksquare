@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from blacksquare.types import CellIndex, CellValue, Direction, SpecialCellValue
 
@@ -56,8 +56,15 @@ class Cell:
     def number(self) -> Optional[int]:
         return self._parent.get_cell_number(self._index)
 
-    def get_twin(self) -> Cell:
-        raise NotImplementedError
+    @property
+    def symmetric_image(self) -> Optional[Union[Cell, List[Cell]]]:
+        result = self.parent_crossword.get_symmetric_cell_index(self.index)
+        if not result:
+            return
+        elif isinstance(result, list):
+            return [self.parent_crossword[i] for i in result]
+        else:
+            return self.parent_crossword[result]
 
     @property
     def str(self) -> str:
