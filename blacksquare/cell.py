@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import copy
-from textwrap import indent
-from typing import TYPE_CHECKING, Optional, Union, List
+from typing import TYPE_CHECKING, List, Optional, Union
 
 from blacksquare.types import CellIndex, CellValue, Direction, SpecialCellValue
 

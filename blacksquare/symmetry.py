@@ -1,9 +1,10 @@
 import enum
-from blacksquare.types import CellIndex
-from typing import Tuple, Optional, Union, List
-import itertools
-import numpy as np
 from dataclasses import dataclass
+from typing import List, Optional, Tuple, Union
+
+import numpy as np
+
+from blacksquare.types import CellIndex
 
 
 @dataclass

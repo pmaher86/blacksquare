@@ -1,6 +1,7 @@
-import pytest
-from blacksquare.symmetry import Symmetry
 import numpy as np
+import pytest
+
+from blacksquare.symmetry import Symmetry
 
 
 @pytest.fixture

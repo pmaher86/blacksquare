@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import io
 from secrets import token_hex
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Union, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import pdfkit
@@ -15,8 +15,8 @@ from rich.table import Table
 from tqdm.auto import tqdm
 
 from blacksquare.cell import Cell
-from blacksquare.types import CellIndex, Direction, SpecialCellValue, WordIndex
 from blacksquare.symmetry import Symmetry
+from blacksquare.types import CellIndex, Direction, SpecialCellValue, WordIndex
 from blacksquare.utils import is_intlike
 from blacksquare.word import Word
 from blacksquare.word_list import DEFAULT_WORDLIST, WordList
