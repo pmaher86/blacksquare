@@ -1,6 +1,6 @@
 import pytest
 
-from blacksquare import ACROSS, BLACK, DOWN, EMPTY, Crossword
+from blacksquare import ACROSS, BLACK, DOWN, EMPTY, Crossword, Symmetry
 
 
 class TestFindMatches:
@@ -75,3 +75,10 @@ class TestWordIndexing:
     def test_invalid_value(self, xw, bad_value):
         with pytest.raises(ValueError):
             xw[ACROSS, 4][0] = bad_value
+
+
+def test_symmetric_image(xw):
+    assert xw[DOWN, 3].symmetric_image.index == (DOWN, 4)
+
+    diag_xw = Crossword(5, symmetry=Symmetry.NW_DIAGONAL)
+    assert diag_xw[ACROSS, 6].symmetric_image.index == (DOWN, 2)

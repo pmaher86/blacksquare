@@ -54,3 +54,7 @@ def test_number(xw):
     assert xw[1, 0].number == 4
     assert xw[0, 0].number is None
     assert xw[1, 1].number is None
+
+
+def test_symmetric_image(xw):
+    assert xw[0, 0].symmetric_image.index == (2, 3)

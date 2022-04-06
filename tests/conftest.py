@@ -40,7 +40,6 @@ def xw(word_list: WordList) -> Crossword:
     """
     xw = Crossword(3, 4, word_list=word_list)
     xw[0, 0] = BLACK
-    xw[2, 3] = BLACK
     xw[ACROSS, 1] = "BCD"
     xw[ACROSS, 4] = "ABCD"
     return xw

@@ -29,11 +29,13 @@ class Symmetry(enum.Enum):
     def requires_square(self) -> bool:
         return self in {Symmetry.FULL, Symmetry.NE_DIAGONAL, Symmetry.NW_DIAGONAL}
 
-    def apply(self, grid: np.ndarray) -> Union[SymmetryResult, List[SymmetryResult]]:
+    def apply(
+        self, grid: np.ndarray, force_list: bool = False
+    ) -> Union[SymmetryResult, List[SymmetryResult]]:
         if self == Symmetry.ROTATIONAL:
-            return SymmetryResult(np.rot90(grid, k=2), False)
+            images = SymmetryResult(np.rot90(grid, k=2), False)
         elif self == Symmetry.FULL:
-            return [
+            images = [
                 SymmetryResult(np.fliplr(grid), False),
                 SymmetryResult(np.flipud(grid), False),
                 SymmetryResult(np.fliplr(np.flipud(grid)), False),
@@ -43,16 +45,21 @@ class Symmetry(enum.Enum):
                 SymmetryResult(np.transpose(np.fliplr(np.flipud(grid))), True),
             ]
         elif self == Symmetry.VERTICAL:
-            return SymmetryResult(np.fliplr(grid), False)
+            images = SymmetryResult(np.fliplr(grid), False)
         elif self == Symmetry.HORIZONTAL:
-            return SymmetryResult(np.flipud(grid), False)
+            images = SymmetryResult(np.flipud(grid), False)
         elif self == Symmetry.BIAXIAL:
-            return [
+            images = [
                 SymmetryResult(np.fliplr(grid), False),
                 SymmetryResult(np.flipud(grid), False),
                 SymmetryResult(np.fliplr(np.flipud(grid)), False),
             ]
         elif self == Symmetry.NE_DIAGONAL:
-            return SymmetryResult(np.transpose(np.rot90(grid, k=2)), True)
+            images = SymmetryResult(np.transpose(np.rot90(grid, k=2)), True)
         elif self == Symmetry.NW_DIAGONAL:
-            return SymmetryResult(np.transpose(grid), True)
+            images = SymmetryResult(np.transpose(grid), True)
+
+        if not isinstance(images, list) and force_list:
+            return [images]
+        else:
+            return images
