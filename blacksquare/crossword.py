@@ -379,28 +379,6 @@ class Crossword:
             )
         self._words = new_words
 
-        # affected_across = (
-        #     set(self._across[old_across != self._across].flatten())
-        #     | set(old_across[old_across != self._across].flatten())
-        # ) - {0}
-        # affected_down = (
-        #     set(self._down[old_down != self._down].flatten())
-        #     | set(old_down[old_down != self._down].flatten())
-        # ) - {0}
-        # # Remove words that don't exist anymore
-        # removed = set()
-        # curr_word_keys = list(self._words.keys())
-        # for word_key in curr_word_keys:
-        #     if word_key[1] not in self._get_direction_mask(word_key[0]):
-        #         del self._words[word_key]
-        #         removed.add(word_key)
-
-        # # Update words
-        # for across_num in affected_across - {n for d, n in removed if d == ACROSS}:
-        #     self._words[(ACROSS, across_num)] = Word(self, ACROSS, across_num)
-        # for down_num in affected_down - {n for d, n in removed if d == DOWN}:
-        #     self._words[(DOWN, down_num)] = Word(self, DOWN, down_num)
-
     def _get_direction_mask(self, direction: Direction) -> np.ndarray:
         """A boolean mask indicating the word number for each cell for a given
         direction.
