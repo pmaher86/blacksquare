@@ -4,4 +4,4 @@ dist/
 blacksquare.egg-info/
 .python-version
 .ipynb_checkpoints/
-docs/_*
+docs/_build/

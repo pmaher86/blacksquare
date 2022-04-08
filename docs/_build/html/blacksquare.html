@@ -8,27 +8,33 @@
 
     <title>blacksquare package &#8212; Blacksquare 0.2.1 documentation</title>
     <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <link rel="stylesheet" type="text/css" href="_static/classic.css" />
+    
     <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
     <script src="_static/jquery.js"></script>
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
+    
     <link rel="index" title="Index" href="genindex.html" />
-    <link rel="search" title="Search" href="search.html" />
-   
-  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
-  
-  
-  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
-
+    <link rel="search" title="Search" href="search.html" /> 
   </head><body>
-  
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Blacksquare 0.2.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">blacksquare package</a></li> 
+      </ul>
+    </div>  
 
     <div class="document">
       <div class="documentwrapper">
         <div class="bodywrapper">
-          
-
           <div class="body" role="main">
             
   <section id="blacksquare-package">
@@ -61,11 +67,6 @@ by the user.</p>
 </dl>
 </dd></dl>
 
-<dl class="py method">
-<dt class="sig sig-object py" id="blacksquare.cell.Cell.get_twin">
-<span class="sig-name descname"><span class="pre">get_twin</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#blacksquare.cell.Cell" title="blacksquare.cell.Cell"><span class="pre">blacksquare.cell.Cell</span></a></span></span><a class="headerlink" href="#blacksquare.cell.Cell.get_twin" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="py property">
 <dt class="sig sig-object py" id="blacksquare.cell.Cell.index">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#blacksquare.cell.Cell.index" title="Permalink to this definition">¶</a></dt>
@@ -87,6 +88,11 @@ by the user.</p>
 <dd></dd></dl>
 
 <dl class="py property">
+<dt class="sig sig-object py" id="blacksquare.cell.Cell.symmetric_image">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">symmetric_image</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.cell.Cell" title="blacksquare.cell.Cell"><span class="pre">blacksquare.cell.Cell</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.cell.Cell" title="blacksquare.cell.Cell"><span class="pre">blacksquare.cell.Cell</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#blacksquare.cell.Cell.symmetric_image" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
 <dt class="sig sig-object py" id="blacksquare.cell.Cell.value">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">value</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#blacksquare.types.SpecialCellValue" title="blacksquare.types.SpecialCellValue"><span class="pre">blacksquare.types.SpecialCellValue</span></a><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#blacksquare.cell.Cell.value" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -98,7 +104,7 @@ by the user.</p>
 <span id="blacksquare-crossword-module"></span><h2>blacksquare.crossword module<a class="headerlink" href="#module-blacksquare.crossword" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
 <dt class="sig sig-object py" id="blacksquare.crossword.Crossword">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">blacksquare.crossword.</span></span><span class="sig-name descname"><span class="pre">Crossword</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">num_rows:</span> <span class="pre">typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">num_cols:</span> <span class="pre">typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">grid:</span> <span class="pre">typing.Optional[typing.Union[typing.List[typing.List[str]],</span> <span class="pre">numpy.ndarray]]</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">word_list:</span> <span class="pre">blacksquare.word_list.WordList</span> <span class="pre">=</span> <span class="pre">WordList(</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">word</span>&#160; <span class="pre">score</span> <span class="pre">0</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">ACCENTCOACH</span>&#160;&#160;&#160; <span class="pre">1.0</span> <span class="pre">1</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">AKNOCKIN</span>&#160;&#160;&#160; <span class="pre">1.0</span> <span class="pre">2</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">APEXPREDATOR</span>&#160;&#160;&#160; <span class="pre">1.0</span> <span class="pre">3</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">AREYOUDRUNK</span>&#160;&#160;&#160; <span class="pre">1.0</span> <span class="pre">4</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">ARTISTICNUDES</span>&#160;&#160;&#160; <span class="pre">1.0</span> <span class="pre">...</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">...</span>&#160;&#160;&#160; <span class="pre">...</span> <span class="pre">566655</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">VANDECAMPS</span>&#160;&#160;&#160; <span class="pre">0.0</span> <span class="pre">566656</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">VERVAIN</span>&#160;&#160;&#160; <span class="pre">0.0</span> <span class="pre">566657</span>&#160; <span class="pre">WOLLAWSYOURPRIDE</span>&#160;&#160;&#160; <span class="pre">0.0</span> <span class="pre">566658</span>&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">WYNONARYDER</span>&#160;&#160;&#160; <span class="pre">0.0</span> <span class="pre">566659</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">YODASPEAK</span>&#160;&#160;&#160; <span class="pre">0.0</span>&#160; <span class="pre">[566660</span> <span class="pre">rows</span> <span class="pre">x</span> <span class="pre">2</span> <span class="pre">columns]</span> <span class="pre">),</span> <span class="pre">display_size_px:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">450</span></em><span class="sig-paren">)</span><a class="headerlink" href="#blacksquare.crossword.Crossword" title="Permalink to this definition">¶</a></dt>
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">blacksquare.crossword.</span></span><span class="sig-name descname"><span class="pre">Crossword</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">num_rows:</span> <span class="pre">typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">num_cols:</span> <span class="pre">typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">grid:</span> <span class="pre">typing.Optional[typing.Union[typing.List[typing.List[str]],</span> <span class="pre">numpy.ndarray]]</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">symmetry:</span> <span class="pre">typing.Optional[blacksquare.symmetry.Symmetry]</span> <span class="pre">=</span> <span class="pre">Symmetry.ROTATIONAL,</span> <span class="pre">word_list:</span> <span class="pre">blacksquare.word_list.WordList</span> <span class="pre">=</span> <span class="pre">WordList(</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">word</span>&#160; <span class="pre">score</span> <span class="pre">0</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">ACCENTCOACH</span>&#160;&#160;&#160; <span class="pre">1.0</span> <span class="pre">1</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">AKNOCKIN</span>&#160;&#160;&#160; <span class="pre">1.0</span> <span class="pre">2</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">APEXPREDATOR</span>&#160;&#160;&#160; <span class="pre">1.0</span> <span class="pre">3</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">AREYOUDRUNK</span>&#160;&#160;&#160; <span class="pre">1.0</span> <span class="pre">4</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">ARTISTICNUDES</span>&#160;&#160;&#160; <span class="pre">1.0</span> <span class="pre">...</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">...</span>&#160;&#160;&#160; <span class="pre">...</span> <span class="pre">566655</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">VANDECAMPS</span>&#160;&#160;&#160; <span class="pre">0.0</span> <span class="pre">566656</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">VERVAIN</span>&#160;&#160;&#160; <span class="pre">0.0</span> <span class="pre">566657</span>&#160; <span class="pre">WOLLAWSYOURPRIDE</span>&#160;&#160;&#160; <span class="pre">0.0</span> <span class="pre">566658</span>&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">WYNONARYDER</span>&#160;&#160;&#160; <span class="pre">0.0</span> <span class="pre">566659</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">YODASPEAK</span>&#160;&#160;&#160; <span class="pre">0.0</span>&#160; <span class="pre">[566660</span> <span class="pre">rows</span> <span class="pre">x</span> <span class="pre">2</span> <span class="pre">columns]</span> <span class="pre">),</span> <span class="pre">display_size_px:</span> <span class="pre">int</span> <span class="pre">=</span> <span class="pre">450</span></em><span class="sig-paren">)</span><a class="headerlink" href="#blacksquare.crossword.Crossword" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>An object representing a crossword puzzle.</p>
 <dl class="py property">
@@ -227,8 +233,8 @@ Defaults to 100.</p></li>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="blacksquare.crossword.Crossword.get_symmetric_index">
-<span class="sig-name descname"><span class="pre">get_symmetric_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#blacksquare.crossword.Crossword.get_symmetric_index" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="blacksquare.crossword.Crossword.get_symmetric_cell_index">
+<span class="sig-name descname"><span class="pre">get_symmetric_cell_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">index</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#blacksquare.crossword.Crossword.get_symmetric_cell_index" title="Permalink to this definition">¶</a></dt>
 <dd><p>Gets the index of a symmetric grid cell. Useful for enforcing symmetry.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
@@ -244,8 +250,8 @@ Defaults to 100.</p></li>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="blacksquare.crossword.Crossword.get_symmetric_word">
-<span class="sig-name descname"><span class="pre">get_symmetric_word</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">word_index</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.types.Direction" title="blacksquare.types.Direction"><span class="pre">blacksquare.types.Direction</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#blacksquare.word.Word" title="blacksquare.word.Word"><span class="pre">blacksquare.word.Word</span></a></span></span><a class="headerlink" href="#blacksquare.crossword.Crossword.get_symmetric_word" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="blacksquare.crossword.Crossword.get_symmetric_word_index">
+<span class="sig-name descname"><span class="pre">get_symmetric_word_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">word_index</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.types.Direction" title="blacksquare.types.Direction"><span class="pre">blacksquare.types.Direction</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.types.Direction" title="blacksquare.types.Direction"><span class="pre">blacksquare.types.Direction</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.types.Direction" title="blacksquare.types.Direction"><span class="pre">blacksquare.types.Direction</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#blacksquare.crossword.Crossword.get_symmetric_word_index" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
@@ -412,6 +418,82 @@ name, address, etc.). Each list element will be one line in the header.</p></li>
 </dd></dl>
 
 </section>
+<section id="module-blacksquare.symmetry">
+<span id="blacksquare-symmetry-module"></span><h2>blacksquare.symmetry module<a class="headerlink" href="#module-blacksquare.symmetry" title="Permalink to this headline">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">blacksquare.symmetry.</span></span><span class="sig-name descname"><span class="pre">Symmetry</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#blacksquare.symmetry.Symmetry" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.Enum</span></code></p>
+<p>An enumeration.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry.BIAXIAL">
+<span class="sig-name descname"><span class="pre">BIAXIAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'biaxial'</span></em><a class="headerlink" href="#blacksquare.symmetry.Symmetry.BIAXIAL" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry.FULL">
+<span class="sig-name descname"><span class="pre">FULL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'full'</span></em><a class="headerlink" href="#blacksquare.symmetry.Symmetry.FULL" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry.HORIZONTAL">
+<span class="sig-name descname"><span class="pre">HORIZONTAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'horizontal'</span></em><a class="headerlink" href="#blacksquare.symmetry.Symmetry.HORIZONTAL" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry.NE_DIAGONAL">
+<span class="sig-name descname"><span class="pre">NE_DIAGONAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'ne_diagonal'</span></em><a class="headerlink" href="#blacksquare.symmetry.Symmetry.NE_DIAGONAL" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry.NW_DIAGONAL">
+<span class="sig-name descname"><span class="pre">NW_DIAGONAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'nw_diagonal'</span></em><a class="headerlink" href="#blacksquare.symmetry.Symmetry.NW_DIAGONAL" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry.ROTATIONAL">
+<span class="sig-name descname"><span class="pre">ROTATIONAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'rotational'</span></em><a class="headerlink" href="#blacksquare.symmetry.Symmetry.ROTATIONAL" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry.VERTICAL">
+<span class="sig-name descname"><span class="pre">VERTICAL</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'vertical'</span></em><a class="headerlink" href="#blacksquare.symmetry.Symmetry.VERTICAL" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry.apply">
+<span class="sig-name descname"><span class="pre">apply</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.symmetry.SymmetryResult" title="blacksquare.symmetry.SymmetryResult"><span class="pre">blacksquare.symmetry.SymmetryResult</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.symmetry.SymmetryResult" title="blacksquare.symmetry.SymmetryResult"><span class="pre">blacksquare.symmetry.SymmetryResult</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#blacksquare.symmetry.Symmetry.apply" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry.is_multi_image">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_multi_image</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#blacksquare.symmetry.Symmetry.is_multi_image" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="blacksquare.symmetry.Symmetry.requires_square">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">requires_square</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#blacksquare.symmetry.Symmetry.requires_square" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="blacksquare.symmetry.SymmetryResult">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">blacksquare.symmetry.</span></span><span class="sig-name descname"><span class="pre">SymmetryResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">word_direction_rotated</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#blacksquare.symmetry.SymmetryResult" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="blacksquare.symmetry.SymmetryResult.grid">
+<span class="sig-name descname"><span class="pre">grid</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">numpy.ndarray</span></em><a class="headerlink" href="#blacksquare.symmetry.SymmetryResult.grid" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="blacksquare.symmetry.SymmetryResult.word_direction_rotated">
+<span class="sig-name descname"><span class="pre">word_direction_rotated</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></em><a class="headerlink" href="#blacksquare.symmetry.SymmetryResult.word_direction_rotated" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
 <section id="module-blacksquare.types">
 <span id="blacksquare-types-module"></span><h2>blacksquare.types module<a class="headerlink" href="#module-blacksquare.types" title="Permalink to this headline">¶</a></h2>
 <dl class="py class">
@@ -564,11 +646,6 @@ allow.</p>
 </dl>
 </dd></dl>
 
-<dl class="py method">
-<dt class="sig sig-object py" id="blacksquare.word.Word.get_twin">
-<span class="sig-name descname"><span class="pre">get_twin</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#blacksquare.word.Word.get_twin" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="py property">
 <dt class="sig sig-object py" id="blacksquare.word.Word.index">
 <em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">index</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.types.Direction" title="blacksquare.types.Direction"><span class="pre">blacksquare.types.Direction</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#blacksquare.word.Word.index" title="Permalink to this definition">¶</a></dt>
@@ -604,6 +681,11 @@ allow.</p>
 </dd>
 </dl>
 </dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="blacksquare.word.Word.symmetric_image">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">symmetric_image</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.word.Word" title="blacksquare.word.Word"><span class="pre">blacksquare.word.Word</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#blacksquare.word.Word" title="blacksquare.word.Word"><span class="pre">blacksquare.word.Word</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#blacksquare.word.Word.symmetric_image" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="py property">
 <dt class="sig sig-object py" id="blacksquare.word.Word.value">
@@ -755,30 +837,37 @@ Defaults to True.</p></li>
 </section>
 
 
+            <div class="clearer"></div>
           </div>
-          
         </div>
       </div>
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
         <div class="sphinxsidebarwrapper">
-<h1 class="logo"><a href="index.html">Blacksquare</a></h1>
-
-
-
-
-
-
-
-
-<h3>Navigation</h3>
-
-<div class="relations">
-<h3>Related Topics</h3>
-<ul>
-  <li><a href="index.html">Documentation overview</a><ul>
-  </ul></li>
+  <div>
+    <h3><a href="index.html">Table of Contents</a></h3>
+    <ul>
+<li><a class="reference internal" href="#">blacksquare package</a><ul>
+<li><a class="reference internal" href="#submodules">Submodules</a></li>
+<li><a class="reference internal" href="#module-blacksquare.cell">blacksquare.cell module</a></li>
+<li><a class="reference internal" href="#module-blacksquare.crossword">blacksquare.crossword module</a></li>
+<li><a class="reference internal" href="#module-blacksquare.symmetry">blacksquare.symmetry module</a></li>
+<li><a class="reference internal" href="#module-blacksquare.types">blacksquare.types module</a></li>
+<li><a class="reference internal" href="#module-blacksquare.utils">blacksquare.utils module</a></li>
+<li><a class="reference internal" href="#module-blacksquare.word">blacksquare.word module</a></li>
+<li><a class="reference internal" href="#module-blacksquare.word_list">blacksquare.word_list module</a></li>
+<li><a class="reference internal" href="#module-blacksquare">Module contents</a></li>
 </ul>
-</div>
+</li>
+</ul>
+
+  </div>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/blacksquare.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
 <div id="searchbox" style="display: none" role="search">
   <h3 id="searchlabel">Quick search</h3>
     <div class="searchformwrapper">
@@ -789,32 +878,26 @@ Defaults to True.</p></li>
     </div>
 </div>
 <script>$('#searchbox').show(0);</script>
-
-
-
-
-
-
-
-
         </div>
       </div>
       <div class="clearer"></div>
     </div>
-    <div class="footer">
-      &copy;2022, Patrick Maher.
-      
-      |
-      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.4.0</a>
-      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
-      
-      |
-      <a href="_sources/blacksquare.rst.txt"
-          rel="nofollow">Page source</a>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Blacksquare 0.2.1 documentation</a> &#187;</li>
+        <li class="nav-item nav-item-this"><a href="">blacksquare package</a></li> 
+      </ul>
     </div>
-
-    
-
-    
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2022, Patrick Maher.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 4.4.0.
+    </div>
   </body>
 </html>
