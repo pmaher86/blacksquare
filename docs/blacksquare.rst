@@ -20,6 +20,14 @@ blacksquare.crossword module
    :undoc-members:
    :show-inheritance:
 
+blacksquare.symmetry module
+---------------------------
+
+.. automodule:: blacksquare.symmetry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 blacksquare.types module
 ------------------------
 

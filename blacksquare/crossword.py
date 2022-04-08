@@ -130,7 +130,6 @@ class Crossword:
         copied._grid = copy.deepcopy(self._grid)
         for cell in copied._grid.ravel():
             cell._parent = copied
-        # Update word references
         copied._words = copy.deepcopy(self._words)
         for word in copied._words.values():
             word._parent = copied
