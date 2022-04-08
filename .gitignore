@@ -5,3 +5,5 @@ blacksquare.egg-info/
 .python-version
 .ipynb_checkpoints/
 docs/_build/
+docs/_static/
+docs/_templates/
