@@ -6,11 +6,12 @@ from typing import TYPE_CHECKING, List, Optional, Union
 import numpy as np
 
 from blacksquare.types import Direction, SpecialCellValue, WordIndex
+from blacksquare.word_list import (INVERSE_CHARACTER_FREQUENCIES,
+                                   MatchWordList, WordList)
 
 if TYPE_CHECKING:
     from blacksquare.cell import Cell
     from blacksquare.crossword import Crossword
-    from blacksquare.word_list import MatchWordList, WordList
 
 
 class Word:
@@ -129,9 +130,14 @@ class Word:
             letter_scores_per_index[idx] = cross_matches.letter_scores_at_index(
                 cross_index
             )
-        score_word_fn = lambda w: np.log(
-            np.prod([letter_scores_per_index[i].get(w[i], 0) for i in open_indices]) + 1
-        )
+
+        def score_word_fn(word: str, score: float) -> float:
+            per_letter_scores = [
+                letter_scores_per_index[i].get(word[i], 0)
+                * INVERSE_CHARACTER_FREQUENCIES.get(word[i], 1)
+                for i in open_indices
+            ]
+            return np.log(np.prod(per_letter_scores) + 1) * score
 
         return matches.rescore(score_word_fn)
 

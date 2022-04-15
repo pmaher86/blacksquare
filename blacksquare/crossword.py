@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import io
+import time
 from secrets import token_hex
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
@@ -11,8 +12,8 @@ import puz
 import PyPDF2
 import rich.box
 from rich.console import Console
+from rich.live import Live
 from rich.table import Table
-from tqdm.auto import tqdm
 
 from blacksquare.cell import Cell
 from blacksquare.symmetry import Symmetry
@@ -34,7 +35,7 @@ class Crossword:
         num_cols: Optional[int] = None,
         grid: Optional[Union[List[List[str]], np.ndarray]] = None,
         symmetry: Optional[Symmetry] = Symmetry.ROTATIONAL,
-        word_list: WordList = DEFAULT_WORDLIST,
+        word_list: Optional[WordList] = None,
         display_size_px: int = 450,
     ):
         """Creates a new Crossword object.
@@ -47,8 +48,8 @@ class Crossword:
             grid (Union[List[List[str]], np.ndarray]], optional): A 2-D array of
                 letters from which the grid will be initialized. Can be provided
                 instead of num_rows/num_cols.
-            word_list (WordList): The word list to use by default when finding
-                solutions.
+            word_list (WordList, optional): The word list to use by default when finding
+                solutions. If None, defaults to the default word list.
             display_size_px (int): The size in pixels of the largest dimension of the
                 puzzle HTML rendering.
         """
@@ -82,7 +83,7 @@ class Crossword:
         self._words = {}
         self._parse_grid()
 
-        self.word_list = word_list
+        self.word_list = word_list if word_list is not None else DEFAULT_WORDLIST
         self.display_size_px = display_size_px
         self.symmetry = symmetry
 
@@ -421,12 +422,15 @@ class Crossword:
         if number:
             return number
 
-    def iterwords(self, direction: Optional[Direction] = None) -> Iterator[Word]:
+    def iterwords(
+        self, direction: Optional[Direction] = None, only_open: bool = False
+    ) -> Iterator[Word]:
         """Method for iterating over the words in the crossword.
 
         Args:
             direction (Direction, optional): If provided, limits the iterator to only
                 the given direction.
+            only_open(bool): Whether to only return open words. Defaults to False.
 
         Yields:
             Iterator[Word]: An iterator of Word objects. Ordered in standard crossword
@@ -434,7 +438,8 @@ class Crossword:
         """
         for word_index in sorted(self._words.keys()):
             if direction is None or direction == self[word_index].direction:
-                yield (self._words[word_index])
+                if not only_open or self._words[word_index].is_open():
+                    yield (self._words[word_index])
 
     def itercells(self) -> Iterator[Cell]:
         """Method for iterating over the cells in the crossword.
@@ -522,101 +527,58 @@ class Crossword:
             new_crossword[index] = value
             return new_crossword
 
-    def find_solutions(
+    def fill(
         self,
-        word_indices: List[WordIndex],
         word_list: Optional[WordList] = None,
-        beam_width=100,
-    ) -> List[Crossword]:
-        """Finds solutions for the provided words. Solutions are returned as new
-        crossword objects.
+        timeout: Optional[int] = 30,
+        temperature: float = 0,
+    ) -> Optional[Crossword]:
+        """Searches for a possible fill, and returns the result as a new Crossword
+        object. Uses a modified depth-first-search algorithm.
 
         Args:
-            word_indices (List[WordIndex]): The words to consider.
-            word_list (Optional[WordList], optional): The word list to use. If None, the
-                default word list for the crossword will be use.
-            beam_width (int, optional): Search parameter, how many branches to consider.
-                Defaults to 100.
+            timeout (int, optional): The maximum time in seconds to search before
+                returning. Defaults to 30. If None, will search until completion.
+            temperature (float, optional): A parameter to control randomness. Defaults
+                to 0 (no randomness). Reasonable values are around 1.
 
         Returns:
-            List[Crossword]: A list of solutions, ranked by score.
+            Optional[Crossword]: The filled Crossword. Returns None if the search is
+                exhausted or the timeout is hit.
         """
-        word_list = self.word_list if word_list is None else word_list
-        memory = [self]
-        sorted_indices = sorted(
-            word_indices, key=lambda i: len(word_list.find_matches(self[i]))
-        )
-        for word_index in tqdm(sorted_indices):
-            new_memory = []
-            for xw in memory:
-                matches = xw[word_index].find_matches(word_list=word_list)
-                for word, score in zip(
-                    matches.words[:beam_width], matches.scores[:beam_width]
-                ):
-                    new_memory.append((xw, word, score))
-            memory = [
-                xw.set_word(word_index, w, inplace=False)
-                for xw, w, s in sorted(new_memory, key=lambda x: x[2], reverse=True)[
-                    :beam_width
-                ]
-            ]
-        scored_memory = [
-            (
-                xw,
-                np.product(
-                    [word_list.get_score(xw[idx].value) for idx in word_indices]
-                ),
-            )
-            for xw in memory
-        ]
-        return [
-            xw for xw, score in sorted(scored_memory, key=lambda x: x[1], reverse=True)
-        ]
+        start_time = time.time()
+        word_list = word_list if word_list is not None else self.word_list
 
-    def find_area_solutions(
-        self, seed_word_index: WordIndex, word_list: Optional[WordList] = None
-    ) -> List[Crossword]:
-        """A method to solve entire contiguous areas of the crossword, starting from a
-        seed.
-
-        Args:
-            seed_word_index (WordIndex): The word to start from.
-            word_list (Optional[WordList], optional): The word list to use. If None, the
-                default word list for the crossword will be use.
-
-        Returns:
-            List[Crossword]: A list of solutions, ranked by score.
-        """
-        word_list = self.word_list if word_list is None else word_list
-        open_words = self.get_contiguous_open_words(seed_word_index)
-        return self.find_solutions([w.index for w in open_words], word_list=word_list)
-
-    def get_contiguous_open_words(self, seed_word_index: WordIndex) -> List[Word]:
-        """Gets the words representing a contiguous open area of the crossword grid.
-
-        Args:
-            seed_word_index (WordIndex): The word to start from.
-
-        Returns:
-            List[Word]: A list of all open words connected to the seed word.
-        """
-        open_words = {self[seed_word_index]}
-        while True:
-            adjacent_open_words = set()
-            for word in open_words:
-                adjacent_open_words.update(
-                    cross
-                    for cell, cross in zip(word.cells, word.crosses)
-                    if cross.is_open() and cell == EMPTY
-                )
-            new_open_words = open_words | adjacent_open_words
-            if new_open_words == open_words:
-                break
+        def recurse_solve(xw: Crossword, display_context: Live) -> Optional[Crossword]:
+            open_words = [w for w in xw.iterwords() if w.is_open()]
+            if len(open_words) == 0:
+                return xw
+            num_matches = np.array([len(word_list.find_matches(w)) for w in open_words])
+            noise = np.abs(np.random.normal(scale=num_matches)) * temperature
+            word_to_match = open_words[np.argmin(num_matches + noise)]
+            matches = word_to_match.find_matches(word_list)
+            if len(matches) == 0:
+                return
             else:
-                open_words = new_open_words
-        return sorted(open_words, key=lambda w: w.index)
+                noisy_matches = matches.rescore(
+                    lambda _, s: s * np.random.lognormal(0.0, 0.1 * temperature)
+                )
+                new_xw = copy.deepcopy(xw)
+                for match in noisy_matches.words:
+                    if timeout and time.time() > start_time + timeout:
+                        return
+                    new_xw[word_to_match.index] = match
+                    display_context.update(new_xw._text_grid())
+                    fill = recurse_solve(new_xw, live)
+                    if fill:
+                        return fill
 
-    # TODO: Implement depth-first search.
+        with Live(self._text_grid(), refresh_per_second=4, transient=True) as live:
+            solution = recurse_solve(self, live)
+            if solution is not None:
+                live.update(solution._text_grid(), refresh=True)
+
+        return solution
 
     def _text_grid(self, numbers: bool = False) -> Table:
         """Returns a rich Table that displays the crossword.
@@ -636,7 +598,7 @@ class Crossword:
             padding=0,
         )
         for c in range(self.num_cols):
-            table.add_column(justify="left")
+            table.add_column(justify="left", width=3)
         for row in self._grid:
             strings = []
             for cell in row:

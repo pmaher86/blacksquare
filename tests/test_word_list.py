@@ -59,11 +59,11 @@ class TestMatchWordList:
         assert matches.letter_scores_at_index(1) == {"B": 2.1, "C": 1.1}
 
     def test_rescore(self, matches: MatchWordList):
-        def rescore_fn(word):
+        def rescore_fn(word, score):
             if "A" in word:
-                return 2.0
+                return 2.0 * score
             else:
-                return 1.0
+                return 1.0 * score
 
         rescored = matches.rescore(rescore_fn)
         assert rescored.get_score("ABC") == 2.0
