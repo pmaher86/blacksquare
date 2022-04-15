@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import copy
 import io
-from secrets import token_hex
 import time
+from secrets import token_hex
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import numpy as np

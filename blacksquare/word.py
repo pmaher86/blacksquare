@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, List, Optional, Union
 import numpy as np
 
 from blacksquare.types import Direction, SpecialCellValue, WordIndex
-from blacksquare.word_list import MatchWordList, WordList, INVERSE_CHARACTER_FREQUENCIES
-
+from blacksquare.word_list import (INVERSE_CHARACTER_FREQUENCIES,
+                                   MatchWordList, WordList)
 
 if TYPE_CHECKING:
     from blacksquare.cell import Cell
