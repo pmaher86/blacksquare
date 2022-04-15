@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
+from xml.dom import INVALID_ACCESS_ERR
 
 import numpy as np
 import pandas as pd
@@ -18,6 +19,41 @@ if TYPE_CHECKING:
 
 
 _ALPHA_REGEX = re.compile("^[A-Z]*$")
+
+# letter_counts = pd.Series(
+#   np.array(DEFAULT_WORDLIST.words).view('U1')
+# ).value_counts().drop('')
+# inverse_frequencies = (1/26) / (letter_counts/letter_counts.sum())
+# inverse_frequencies.sort_index().to_dict()
+
+INVERSE_CHARACTER_FREQUENCIES = {
+    "A": 0.45,
+    "B": 1.98,
+    "C": 0.99,
+    "D": 1.09,
+    "E": 0.34,
+    "F": 2.27,
+    "G": 1.43,
+    "H": 1.26,
+    "I": 0.5,
+    "J": 14.81,
+    "K": 3.21,
+    "L": 0.75,
+    "M": 1.34,
+    "N": 0.57,
+    "O": 0.53,
+    "P": 1.41,
+    "Q": 27.79,
+    "R": 0.56,
+    "S": 0.51,
+    "T": 0.55,
+    "U": 1.19,
+    "V": 3.76,
+    "W": 3.18,
+    "X": 10.08,
+    "Y": 2.21,
+    "Z": 12.62,
+}
 
 
 class WordList:
@@ -195,7 +231,9 @@ class MatchWordList(WordList):
             return {}
 
     def rescore(
-        self, rescore_fn: Callable[[str], float], drop_zeros=True
+        self,
+        rescore_fn: Callable[[str, float], float],
+        drop_zeros=True,
     ) -> MatchWordList:
         """Generates a new word list with new scores, as defined by the rescore
         function.
@@ -211,8 +249,7 @@ class MatchWordList(WordList):
                 rescore function times the original score for the word.
         """
         vectorized_fn = np.vectorize(rescore_fn, otypes=[float])
-        new_weights = vectorized_fn(self._words)
-        new_scores = self._scores * new_weights
+        new_scores = vectorized_fn(self._words, self._scores)
         new_words = self._words
         if drop_zeros:
             gt_zero_mask = new_scores > 0
