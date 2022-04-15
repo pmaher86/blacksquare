@@ -239,8 +239,8 @@ class MatchWordList(WordList):
         function.
 
         Args:
-            rescore_fn (Callable[[str], float]): The function mapping words to new
-                scores. This function should treat zero as invalid.
+            rescore_fn (Callable[[str, float], float]): The function mapping the word
+                and old score to new scores. This function should treat zero as invalid.
             drop_zeros (bool, optional): Whether to remove words with a score of zero.
                 Defaults to True.
 

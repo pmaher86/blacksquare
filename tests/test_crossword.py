@@ -140,47 +140,34 @@ class TestCrosswordProperties:
         assert xw[ACROSS, 5].value == "   "
 
 
-class TestCrosswordSolutions:
-    def test_find_solutions(self, xw):
-        solutions = xw.find_solutions([(DOWN, 1), (DOWN, 4)])
-        assert len(solutions) == 2
-        assert solutions[0][ACROSS, 5].value == "BB "
+class TestCrosswordFill:
+    def test_fill(self, xw):
+        solution = xw.fill()
+        assert solution[ACROSS, 5].value == "BBB"
 
     def test_find_solutions_with_custom_dictionary(self, xw):
-        solutions = xw.find_solutions(
-            [(DOWN, 1), (DOWN, 4)],
-            word_list=WordList({"BBB": 1, "AC": 1, "CBX": 1, "AA": 0.1, "AB": 0.1}),
+        solution = xw.fill(
+            word_list=WordList(
+                {
+                    "BBB": 1,
+                    "AC": 1,
+                    "CBX": 1,
+                    "CBA": 1,
+                    "AA": 0.1,
+                    "AB": 0.1,
+                    "CCX": 1,
+                    "CCA": 0.1,
+                }
+            ),
         )
-        assert len(solutions) == 2
-        assert solutions[0][ACROSS, 5].value == "CB "
-
-    def test_find_solutions_on_solved_words(self, xw):
-        solutions = xw.find_solutions([(ACROSS, 1), (ACROSS, 4)])
-        assert len(solutions) == 0
-        solutions = xw.find_solutions([(ACROSS, 4), (DOWN, 2)])
-        assert len(solutions) == 0
-
-    def test_find_area_solutions(self, xw):
-        xw[1, 0] = EMPTY
-        xw[0, 3] = EMPTY
-        solutions = xw.find_area_solutions((DOWN, 4))
-        assert len(solutions) == 1
-        assert solutions[0][ACROSS, 5].value == "BBB"
-        assert all(s[0, 3] == EMPTY for s in solutions)
-
-    def test_find_area_solutions_on_solved(self, xw):
-        solutions = xw.find_area_solutions((ACROSS, 1))
-        assert len(solutions) == 1
-        assert np.all(
-            [s == x for s, x in zip(solutions[0].itercells(), xw.itercells())]
-        )
+        assert solution[ACROSS, 5].value == "CBX"
 
     def test_unsolvable(self, xw):
         xw[1, 0] = "J"
         xw[1, 1] = EMPTY
         xw[0, 1] = "Q"
-        solutions = xw.find_area_solutions((DOWN, 1))
-        assert solutions == []
+        solution = xw.fill()
+        assert solution is None
 
 
 def test_symmetry_requirements():
