@@ -608,7 +608,9 @@ class Crossword:
                     if numbers:
                         strings.append(str(cell.number) if cell.number else "")
                     else:
-                        strings.append(f"{'^' if cell.number else ' '}{cell.str}")
+                        strings.append(
+                            f"{'^' if cell.number else ' '}{cell.str}{'*' if cell.shaded or cell.circled else ' '}"
+                        )
             table.add_row(*strings)
 
         return table
@@ -658,15 +660,19 @@ class Crossword:
         size_px = size_px or self.display_size_px
         # Random suffix is a hack to ensure correct display in Jupyter settings
         suffix = token_hex(4)
+        circle_string = f"<div class='circle{suffix}'> </div>"
         row_elems = []
         for r in range(self._num_rows):
             cells = []
             for c in range(self._num_cols):
                 number = self._numbers[r, c]
                 cells.append(
-                    f"""<td class='xw{suffix}{ f" black{suffix}" if self._grid[r, c] == BLACK else ""}'>
+                    f"""<td class='xw{suffix}{f" black{suffix}" if self._grid[r, c] == BLACK else ""}{f" gray{suffix}" if self._grid[r, c].shaded else ""}'>
                         <div class='number{suffix}'> {number if number else ""}</div>
-                        <div class='value{suffix}'>{self._grid[r,c].str if self._grid[r,c] != BLACK else ""}</div>
+                        <div class='value{suffix}'>
+                            {self._grid[r,c].str if self._grid[r,c] != BLACK else ""}
+                        </div>
+                        {circle_string if self._grid[r,c].circled else ""}
                     </td >"""
                 )
             row_elems.append(f"<tr class='xw{suffix}'>{''.join(cells)}</tr>")
@@ -681,6 +687,8 @@ class Crossword:
         .number{suffix} {{position: absolute;top: 2px;left: 2px;font-size: {num_font}px;font-weight: normal;user-select: none;}}
         .value{suffix} {{position: absolute;bottom:0;left: 50%;font-weight: bold;font-size: {val_font}px; transform: translate(-50%, 0%);}}
         .black{suffix} {{background-color: black;}}
+        .gray{suffix} {{background-color: lightgrey;}}
+        .circle{suffix} {{position: absolute; border-radius: 50%; border: 1px solid black; right: 0px; left: 0px; top: 0px; bottom: 0px;}}
         </style>
         <table class='xw{suffix}'><tbody>
             {rows}

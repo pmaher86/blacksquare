@@ -24,6 +24,8 @@ class Cell:
         self._parent = parent_crossword
         self._index = index
         self._value = _parse_cell_input(value)
+        self.shaded = False
+        self.circled = False
 
     @property
     def parent_crossword(self) -> Crossword:
