@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import io
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union, NamedTuple
 from xml.dom import INVALID_ACCESS_ERR
 
 import numpy as np
@@ -19,6 +20,12 @@ if TYPE_CHECKING:
 
 
 _ALPHA_REGEX = re.compile("^[A-Z]*$")
+
+
+class ScoredWord(NamedTuple):
+    word: str
+    score: float
+
 
 # letter_counts = pd.Series(
 #   np.array(DEFAULT_WORDLIST.words).view('U1')
@@ -106,7 +113,7 @@ class WordList:
         ]
         sorted_words_scores = sorted(filtered_words_scores, key=lambda x: (-x[1], x[0]))
         unzipped = list(zip(*sorted_words_scores))
-        norm_words, scores = unzipped[0], np.array(unzipped[1])
+        norm_words, scores = np.array(unzipped[0]), np.array(unzipped[1])
         norm_scores = scores / scores.max()
 
         self._words, self._scores = norm_words, norm_scores
@@ -133,6 +140,7 @@ class WordList:
         return self.find_matches_str(word.value)
 
     # TODO: lru cache?
+    @lru_cache(128)
     def find_matches_str(self, query: str) -> MatchWordList:
         """Find matches for a query string. Open letters can be represented by a " ",
         "?", or "_" character.
@@ -192,6 +200,18 @@ class WordList:
     def frame(self) -> pd.DataFrame:
         return pd.DataFrame({"word": self._words, "score": self._scores})
 
+    def score_filter(self, threshold: float) -> WordList:
+        """Returns a new word list containing only the words above the threshold.
+
+        Args:
+            threshold (float): The score threshold.
+
+        Returns:
+            WordList: The resulting WordList
+        """
+        score_mask = self._scores >= threshold
+        return WordList(dict(zip(self._words[score_mask], self._scores[score_mask])))
+
     def __len__(self):
         return len(self._words)
 
@@ -200,6 +220,21 @@ class WordList:
 
     def _repr_html_(self):
         return self.frame._repr_html_()
+
+    def __getitem__(self, key) -> ScoredWord:
+        return ScoredWord(self._words[key], self._scores[key])
+
+    def __iter__(self):
+        self._iter_index = 0
+        return self
+
+    def __next__(self):
+        if self._iter_index < len(self):
+            val = self[self._iter_index]
+            self._iter_index += 1
+            return val
+        else:
+            raise StopIteration
 
 
 class MatchWordList(WordList):
@@ -259,6 +294,20 @@ class MatchWordList(WordList):
         sort_indices = np.flip(np.argsort(new_scores))
         return MatchWordList(
             self._word_length, new_words[sort_indices], new_scores[sort_indices]
+        )
+
+    def score_filter(self, threshold: float) -> MatchWordList:
+        """Returns a new word list containing only the words above the threshold.
+
+        Args:
+            threshold (float): The score threshold.
+
+        Returns:
+            MatchWordList: The resulting MatchWordList
+        """
+        score_mask = self._scores >= threshold
+        return MatchWordList(
+            self._word_length, self._words[score_mask], self._scores[score_mask]
         )
 
 
