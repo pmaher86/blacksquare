@@ -1,6 +1,5 @@
 # Blacksquare
-![Build Status](https://github.com/pmaher86/blacksquare/actions/workflows/build-and-test.yaml/badge.svg) [![Documentation Status](https://readthedocs.org/projects/blacksquare/badge/?version=latest)](https://blacksquare.readthedocs.io/en/latest/?badge=latest)
-
+![Build Status](https://github.com/pmaher86/blacksquare/actions/workflows/build-and-test.yaml/badge.svg) ![Documentation Status](https://readthedocs.org/projects/blacksquare/badge/?version=latest)
 
 Blacksquare is a Python package for crossword creators. It aims to be an intuitive interface for working with crossword puzzles programmatically. It also has tools for finding valid fills, and HTML rendering that plugs nicely into Jupyter notebooks. Blacksquare supports import and export from the .puz format via [puzpy](https://github.com/alexdej/puzpy), as well as .pdf export in the [New York Times submission format](https://www.nytimes.com/puzzles/submissions/crossword) (requires [wkhtmltopdf](https://wkhtmltopdf.org/)).
 
@@ -11,7 +10,7 @@ Blacksquare is a Python package for crossword creators. It aims to be an intuiti
 The interface is built to use Python's indexing syntax to express high-level crossword concepts.
 
 ```python
->>> from blacksquare import Crossword, BLACK, EMPTY, ACROSS, DOWN
+>>> from blacksquare import Crossword, BLACK, EMPTY, ACROSS, DOWN, DEFAULT_WORDLIST
 >>> xw = Crossword(num_rows=7)
 # (row, column) indexing for individual cells
 >>> xw[3,3] = BLACK
@@ -36,25 +35,25 @@ The interface is built to use Python's indexing syntax to express high-level cro
 >>> xw[DOWN, 3] = xw[DOWN, 3].find_matches().words[0]
 >>> xw.pprint()
 ┌───┬───┬───┬───┬───┬───┬───┐
-│   │   │ A │   │   │   │   │
+│^  │^  │^C │^  │^  │^  │^  │
 ├───┼───┼───┼───┼───┼───┼───┤
-│   │   │ A │   │   │   │   │
+│^  │   │ A │   │   │   │   │
 ├───┼───┼───┼───┼───┼───┼───┤
-│   │   │ C │   │   │   │   │
+│^  │   │ V │   │   │   │   │
 ├───┼───┼───┼───┼───┼───┼───┤
-│ D │ O │ E │███│   │   │   │
+│^D │ O │ E │███│^  │   │   │
 ├───┼───┼───┼───┼───┼───┼───┤
-│   │   │ L │   │   │   │   │
+│^  │   │ A │^  │   │   │   │
 ├───┼───┼───┼───┼───┼───┼───┤
-│   │   │ L │   │   │   │   │
+│^  │   │ R │   │   │   │   │
 ├───┼───┼───┼───┼───┼───┼───┤
-│   │   │ S │   │   │   │   │
+│^  │   │ T │   │   │   │   │
 └───┴───┴───┴───┴───┴───┴───┘
 # We can also index into Word objects
->>> xw[DOWN, 3][1] = 'D'
+>>> xw[DOWN, 3][1] = 'I'
 >>> xw[DOWN, 3][0] = EMPTY
 >>> xw[DOWN, 3].value
-' DCELLS'
+' IVEART'
 ```
 Puzzles can be imported and exported easily.
 ```python
@@ -64,15 +63,33 @@ Puzzles can be imported and exported easily.
 ```
 There are useful utility functions for navigating.
 ```python
->>> unfilled_words = [w for w in xw.iterwords() if w.is_open()]
->>> xw[DOWN,13]crosses
-[Across 12: "??L????", Across 14: "??L????", Across 15: "??S????"]
+>>> unfilled_words = list(xw.iterwords(only_open=True))
+>>> xw[DOWN, 13].crosses
+[Word(Across 12: "??A????)",
+ Word(Across 14: "??R????)",
+ Word(Across 15: "??T????)"]
+
 ```
 Clues can be attached to words.
 ```python
 >>> xw[ACROSS, 10].clue = "A deer, a female deer"
 >>> xw.clues
-{(<Across>, 1): '', (<Across>, 8): '', (<Across>, 9): '', (<Across>, 10): 'A deer, a female deer', (<Across>, 11): '', (<Across>, 12): '', (<Down>, 1): '', (<Down>, 2): '', (<Down>, 3): '', (<Down>, 4): '', (<Down>, 5): '', (<Down>, 6): '', (<Down>, 7): '', (<Across>, 14): '', (<Across>, 15): '', (<Down>, 13): ''}
+{(<Across>, 1): '',
+ (<Across>, 8): '',
+ (<Across>, 9): '',
+ (<Across>, 10): 'A deer, a female deer',
+ (<Across>, 11): '',
+ (<Across>, 12): '',
+ (<Across>, 14): '',
+ (<Across>, 15): '',
+ (<Down>, 1): '',
+ (<Down>, 2): '',
+ (<Down>, 3): '',
+ (<Down>, 4): '',
+ (<Down>, 5): '',
+ (<Down>, 6): '',
+ (<Down>, 7): '',
+ (<Down>, 13): ''}
 ```
 You can also make modifications that return new grid objects, to support things like custom branching searches.
 ```python
@@ -83,12 +100,9 @@ A main attraction are the utilities to help find valid fills. It implements an a
 ```python
 >>> matches = xw[DOWN, 1].find_matches()
 >>> matches[0]
-'MCADAMS'
-# This returns a list of new Crossword objects sorted by the dictionary scores of the words
->>> matching_grids = xw.find_solutions([(DOWN, 1), (DOWN, 2)])
-# This returns a list of Crossword objects with everything contiguous to (DOWN, 1) filled.
-# Careful, this can be slow for large unfilled areas!
->>> matching_grids = xw.find_area_solutions((DOWN, 1))
+ScoredWord(word='MACDUFF', score=25.387070408819042)
+# This returns a new valid Crossword fill, with optional randomness and word list control.
+>>> filled = xw.fill(temperature=1, word_list=DEFAULT_WORDLIST.score_filter(0.5))
 ```
 
 
@@ -106,4 +120,4 @@ Possible extensions include:
 - [ ] Other/better filling heuristics
 - [ ] Verifying puzzle validity
 - [ ] Rebuses
-- [ ] Annotations for themed puzzles (circles etc.)
+- [x] Annotations for themed puzzles (circles etc.)
