@@ -333,7 +333,6 @@ class Crossword:
         padded = np.pad(self._grid, 1, constant_values=Cell(None, (None, None), BLACK))
         shifted_down, shifted_right = padded[:-2, 1:-1], padded[1:-1, :-2]
         shifted_up, shifted_left = padded[2:, 1:-1], padded[1:-1, 2:]
-
         is_open = ~np.equal(self._grid, BLACK)
         starts_down, starts_across = (
             np.equal(x, BLACK) for x in (shifted_down, shifted_right)
@@ -341,8 +340,9 @@ class Crossword:
         too_short_down, too_short_across = (
             np.equal(x, BLACK) for x in (shifted_up, shifted_left)
         )
-        needs_num = (is_open) & ((starts_down & ~ too_short_down) |
-                                 (starts_across & ~too_short_across))
+        starts_down = starts_down & ~too_short_down
+        starts_across = starts_across & ~too_short_across
+        needs_num = is_open & (starts_down | starts_across)
         self._numbers = np.reshape(np.cumsum(needs_num), self._grid.shape) * needs_num
         self._across = (
             np.maximum.accumulate(starts_across * self._numbers, axis=1) * is_open
