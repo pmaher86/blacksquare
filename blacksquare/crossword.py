@@ -481,12 +481,16 @@ class Crossword:
 
         Returns:
             Optional[Word]: The word passing through the index in the provided
-            direction. If the index corresponds to a black square, this method returns
-            None.
+            direction. If the index corresponds to a black square, or there is 
+            no word in that direction (an unchecked light) this
+            method returns None.
         """
         if self[index] != BLACK:
             number = self._get_direction_mask(direction)[index]
-            return self[direction, number]
+            try:
+                return self[direction, number]
+            except:
+                return None
 
     def set_word(
         self, word_index: WordIndex, value: str, inplace: bool = True
