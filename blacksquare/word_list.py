@@ -5,9 +5,7 @@ import re
 from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
-from typing import (TYPE_CHECKING, Callable, Dict, List, NamedTuple, Optional,
-                    Union)
-from xml.dom import INVALID_ACCESS_ERR
+from typing import TYPE_CHECKING, Callable, Dict, List, NamedTuple, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -236,6 +234,11 @@ class WordList:
             return val
         else:
             raise StopIteration
+
+    def __add__(self, other):
+        return WordList(
+            {w: s for w, s in zip(self.words + other.words, self.scores + other.scores)}
+        )
 
 
 class MatchWordList(WordList):

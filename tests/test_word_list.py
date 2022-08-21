@@ -49,6 +49,13 @@ class TestWordList:
         assert word_list.get_score("BBB") == 0.1
         assert word_list.get_score("XYZ") is None
 
+    def test_add_word_list(self):
+        word_list_1 = {"ZZZ": 0.1, "AAA": 1.0}
+        word_list_2 = {"ABC": 0.9, "XYZ": 1.0}
+        new_word_list = WordList(word_list_1) + WordList(word_list_2)
+        assert new_word_list.words == ["AAA", "XYZ", "ABC", "ZZZ"]
+        assert new_word_list.scores == [1.0, 1.0, 0.9, 0.1]
+
 
 class TestMatchWordList:
     @pytest.fixture
