@@ -332,12 +332,17 @@ class Crossword:
         old_across, old_down = self._across, self._down
         padded = np.pad(self._grid, 1, constant_values=Cell(None, (None, None), BLACK))
         shifted_down, shifted_right = padded[:-2, 1:-1], padded[1:-1, :-2]
-
+        shifted_up, shifted_left = padded[2:, 1:-1], padded[1:-1, 2:]
         is_open = ~np.equal(self._grid, BLACK)
         starts_down, starts_across = (
             np.equal(x, BLACK) for x in (shifted_down, shifted_right)
         )
-        needs_num = (is_open) & (starts_down | starts_across)
+        too_short_down, too_short_across = (
+            np.equal(x, BLACK) for x in (shifted_up, shifted_left)
+        )
+        starts_down = starts_down & ~too_short_down
+        starts_across = starts_across & ~too_short_across
+        needs_num = is_open & (starts_down | starts_across)
         self._numbers = np.reshape(np.cumsum(needs_num), self._grid.shape) * needs_num
         self._across = (
             np.maximum.accumulate(starts_across * self._numbers, axis=1) * is_open
@@ -476,12 +481,16 @@ class Crossword:
 
         Returns:
             Optional[Word]: The word passing through the index in the provided
-            direction. If the index corresponds to a black square, this method returns
-            None.
+            direction. If the index corresponds to a black square, or there is 
+            no word in that direction (an unchecked light) this
+            method returns None.
         """
         if self[index] != BLACK:
             number = self._get_direction_mask(direction)[index]
-            return self[direction, number]
+            try:
+                return self[direction, number]
+            except:
+                return None
 
     def set_word(
         self, word_index: WordIndex, value: str, inplace: bool = True

@@ -125,6 +125,8 @@ class Word:
         letter_scores_per_index = {}
         for idx in open_indices:
             cross = self.crosses[idx]
+            if cross is None:
+                continue
             cross_index = cross.crosses.index(self)
             cross_matches = word_list.find_matches(cross)
             letter_scores_per_index[idx] = cross_matches.letter_scores_at_index(
@@ -135,7 +137,7 @@ class Word:
             per_letter_scores = [
                 letter_scores_per_index[i].get(word[i], 0)
                 * INVERSE_CHARACTER_FREQUENCIES.get(word[i], 1)
-                for i in open_indices
+                for i in open_indices if i in letter_scores_per_index
             ]
             return np.log(np.prod(per_letter_scores) + 1) * score
 
