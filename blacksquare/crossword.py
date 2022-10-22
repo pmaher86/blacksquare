@@ -17,7 +17,13 @@ from rich.table import Table
 
 from blacksquare.cell import Cell
 from blacksquare.symmetry import Symmetry
-from blacksquare.types import CellIndex, Direction, SpecialCellValue, WordIndex
+from blacksquare.types import (
+    CellIndex,
+    CellValue,
+    Direction,
+    SpecialCellValue,
+    WordIndex,
+)
 from blacksquare.utils import is_intlike
 from blacksquare.word import Word
 from blacksquare.word_list import DEFAULT_WORDLIST, WordList
@@ -101,26 +107,9 @@ class Crossword:
     def __setitem__(self, key, value):
         if isinstance(key, tuple) and len(key) == 2:
             if isinstance(key[0], Direction) and is_intlike(key[1]):
-                if not isinstance(value, str) or len(self[key]) != len(value):
-                    raise ValueError
-                for letter, cell in zip(value, self._grid[self._get_word_mask(key)]):
-                    cell.value = letter
+                self.set_word(key, value)
             elif is_intlike(key[0]) and is_intlike(key[1]):
-                if value == BLACK:
-                    self._grid[key].value = BLACK
-                    images = self.get_symmetric_cell_index(key, force_list=True)
-                    for image in images:
-                        self._grid[image].value = BLACK
-                    self._parse_grid()
-                elif self._grid[key] == BLACK:
-                    self._grid[key].value = value
-                    images = self.get_symmetric_cell_index(key, force_list=True)
-                    for image in images:
-                        if self._grid[image].value == BLACK:
-                            self._grid[image].value = EMPTY
-                    self._parse_grid()
-                else:
-                    self._grid[key].value = value
+                self.set_cell(key, value)
             else:
                 raise IndexError
         else:
@@ -384,8 +373,8 @@ class Crossword:
             )
         self._words = new_words
 
-    def _get_direction_mask(self, direction: Direction) -> np.ndarray:
-        """A boolean mask indicating the word number for each cell for a given
+    def _get_direction_numbers(self, direction: Direction) -> np.ndarray:
+        """An array indicating the word number for each cell for a given
         direction.
 
         Args:
@@ -409,7 +398,7 @@ class Crossword:
             np.ndarray: The grid indicating which cells are in the input word.
         """
         word = self[word_index]
-        return self._get_direction_mask(word.direction) == word.number
+        return self._get_direction_numbers(word.direction) == word.number
 
     def get_word_cells(self, word_index: WordIndex) -> List[Cell]:
         return list(self._grid[self._get_word_mask(word_index)])
@@ -481,60 +470,64 @@ class Crossword:
 
         Returns:
             Optional[Word]: The word passing through the index in the provided
-            direction. If the index corresponds to a black square, or there is 
+            direction. If the index corresponds to a black square, or there is
             no word in that direction (an unchecked light) this
             method returns None.
         """
         if self[index] != BLACK:
-            number = self._get_direction_mask(direction)[index]
+            number = self._get_direction_numbers(direction)[index]
             try:
                 return self[direction, number]
             except:
                 return None
 
-    def set_word(
-        self, word_index: WordIndex, value: str, inplace: bool = True
-    ) -> Optional[Crossword]:
-        """Sets a word to a new value. If inplace is set to False, returns a new
-        Crossword object rather than modifying the current one.
+    def set_word(self, word_index: WordIndex, value: str) -> None:
+        """Sets a word to a new value.
 
         Args:
             word_index (WordIndex): The index of the word.
             value (str): The new value of the word.
-            inplace (bool): Whether to modify the current object.
-
-        Returns:
-            Optional[Crossword]: If inplace is False, a new Crossword object is
-            returned with new value.
         """
-        if inplace:
-            self[word_index] = value
-        else:
-            new_crossword = copy.deepcopy(self)
-            new_crossword[word_index] = value
-            return new_crossword
+        if not isinstance(value, str) or len(self[word_index]) != len(value):
+            raise ValueError
+        word_mask = self._get_word_mask(word_index)
+        cells = self._grid[word_mask]
+        for i in range(len(value)):
+            cells[i].value = value[i]
 
-    def set_cell(
-        self, index: CellIndex, value: str, inplace: bool = True
-    ) -> Optional[Crossword]:
-        """Sets a cell to a new value. If inpace is set to False, returns a new
-        Crossword object rather than modifying the current one.
+    def set_cell(self, index: CellIndex, value: CellValue) -> None:
+        """Sets a cell to a new value.
 
         Args:
             index (CellIndex): The index of the cell.
             value (str): The new value of the cell.
-            inplace (bool): Whether to modify the current object.
+        """
+        cell = self._grid[index]
+        if value == BLACK:
+            cell.value = BLACK
+            images = self.get_symmetric_cell_index(index, force_list=True)
+            for image in images:
+                self._grid[image].value = BLACK
+            self._parse_grid()
+        elif cell == BLACK:
+            cell.value = value
+            images = self.get_symmetric_cell_index(index, force_list=True)
+            for image in images:
+                if self._grid[image].value == BLACK:
+                    self._grid[image].value = EMPTY
+            self._parse_grid()
+        else:
+            cell.value = value
+
+    def copy(self) -> Crossword:
+        """Returns a copy of the current crossword, with all linked objects (Words and
+        Cells) properly associated to the new object. Modifying the returned object will
+        not affect the original object.
 
         Returns:
-            Optional[Crossword]: If inplace is False, a new Crossword object is
-            returned with new value.
+            Crossword: A copy of the current Crossword object.
         """
-        if inplace:
-            self[index] = value
-        else:
-            new_crossword = copy.deepcopy(self)
-            new_crossword[index] = value
-            return new_crossword
+        return copy.deepcopy(self)
 
     def fill(
         self,

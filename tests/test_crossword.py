@@ -126,16 +126,15 @@ class TestCrosswordProperties:
     def test_set_word(self, xw):
         xw.set_word((ACROSS, 1), "DDD")
         assert xw[ACROSS, 1].value == "DDD"
-        xw2 = xw.set_word((ACROSS, 5), "EEE", inplace=False)
-        assert xw2 is not xw
-        assert xw2[ACROSS, 5].value == "EEE"
-        assert xw[ACROSS, 5].value == "   "
 
     def test_set_cell(self, xw):
         xw.set_cell((0, 1), "D")
         assert xw[ACROSS, 1].value == "DCD"
-        xw2 = xw.set_cell((2, 1), "E", inplace=False)
+
+    def test_copy(self, xw):
+        xw2 = xw.copy()
         assert xw2 is not xw
+        xw2.set_cell((2, 1), "E")
         assert xw2[ACROSS, 5].value == " E "
         assert xw[ACROSS, 5].value == "   "
 
