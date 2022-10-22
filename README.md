@@ -91,9 +91,10 @@ Clues can be attached to words.
  (<Down>, 7): '',
  (<Down>, 13): ''}
 ```
-You can also make modifications that return new grid objects, to support things like custom branching searches.
+You can also copy grid objects, to support things like custom branching searches.
 ```python
->>> new_xw = xw.set_word((ACROSS, 11), 'ABC', inplace=False)
+>>> new_xw = xw.copy()
+>>> new_xw[ACROSS, 11] = 'ABC'
 ```
 
 A main attraction are the utilities to help find valid fills. It implements an algorithm called `cross_rank` that tries to maximize the number of valid matches for each cross. Multiple clues can searched at once for mutually compatible solutions using a beam search method, and entire continuous unfilled areas can be searched from a single seed clue.
