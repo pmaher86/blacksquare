@@ -138,7 +138,6 @@ class WordList:
         """
         return self.find_matches_str(word.value)
 
-    # TODO: lru cache?
     @lru_cache(128)
     def find_matches_str(self, query: str) -> MatchWordList:
         """Find matches for a query string. Open letters can be represented by a " ",
