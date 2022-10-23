@@ -4,11 +4,13 @@
 #
 #    pip-compile --extra=test
 #
-attrs==21.4.0
+attrs==22.1.0
     # via pytest
-black==22.1.0
+black==22.10.0
     # via blacksquare (setup.py)
-click==8.0.4
+build==0.8.0
+    # via pip-tools
+click==8.1.3
     # via
     #   black
     #   pip-tools
@@ -18,23 +20,27 @@ iniconfig==1.1.1
     # via pytest
 mypy-extensions==0.4.3
     # via black
-numpy==1.22.3
+networkx==2.8.7
+    # via blacksquare (setup.py)
+numpy==1.23.4
     # via
     #   blacksquare (setup.py)
     #   pandas
 packaging==21.3
-    # via pytest
-pandas==1.4.1
+    # via
+    #   build
+    #   pytest
+pandas==1.5.1
     # via blacksquare (setup.py)
-pathspec==0.9.0
+pathspec==0.10.1
     # via black
 pdfkit==1.0.0
     # via blacksquare (setup.py)
-pep517==0.12.0
-    # via pip-tools
-pip-tools==6.5.1
+pep517==0.13.0
+    # via build
+pip-tools==6.9.0
     # via blacksquare (setup.py)
-platformdirs==2.5.1
+platformdirs==2.5.2
     # via black
 pluggy==1.0.0
     # via pytest
@@ -42,29 +48,32 @@ puzpy==0.2.5
     # via blacksquare (setup.py)
 py==1.11.0
     # via pytest
-pygments==2.11.2
+pygments==2.13.0
     # via rich
-pyparsing==3.0.7
+pyparsing==3.0.9
     # via packaging
-pypdf2==1.26.0
+pypdf2==2.11.1
     # via blacksquare (setup.py)
-pytest==7.1.1
+pytest==7.1.3
     # via blacksquare (setup.py)
 python-dateutil==2.8.2
     # via pandas
-pytz==2021.3
+pytz==2022.5
     # via pandas
-rich==12.0.0
+rich==12.6.0
     # via blacksquare (setup.py)
 six==1.16.0
     # via python-dateutil
 tomli==2.0.1
     # via
     #   black
-    #   pep517
+    #   build
     #   pytest
-typing-extensions==4.1.1
-    # via black
+typing-extensions==4.4.0
+    # via
+    #   black
+    #   pypdf2
+    #   rich
 wheel==0.37.1
     # via pip-tools
 

@@ -138,6 +138,15 @@ class TestCrosswordProperties:
         assert xw2[ACROSS, 5].value == " E "
         assert xw[ACROSS, 5].value == "   "
 
+    def test_subgrids(self, xw: Crossword):
+        graphs = xw.get_disconnected_open_subgrids()
+        assert len(graphs) == 1
+        assert len(graphs[0]) == 4
+        xw[2, 0] = "Z"
+        xw[1, 3] = " "
+        graphs = xw.get_disconnected_open_subgrids()
+        assert len(graphs) == 2
+
 
 class TestCrosswordFill:
     def test_fill(self, xw):
