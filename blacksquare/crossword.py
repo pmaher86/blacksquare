@@ -612,61 +612,57 @@ class Crossword:
         subgraphs = self.get_disconnected_open_subgrids()
         start_time = time.time()
         word_list = word_list if word_list is not None else self.word_list
+        xw = self.copy()
 
         def recurse_subgraph_fill(
-            xw: Crossword, active_subgraph: List[WordIndex], display_context: Live
-        ) -> Optional[Crossword]:
-            if not active_subgraph:
-                return xw
+            active_subgraph: List[WordIndex], display_context: Live
+        ) -> bool:
             if xw.hashable_state(active_subgraph) in dead_end_states:
-                return
+                return False
             num_matches = np.array(
                 [len(word_list.find_matches(xw[i])) for i in active_subgraph]
             )
             noise = np.abs(np.random.normal(scale=num_matches)) * temperature
-            word_to_match = xw[active_subgraph[np.argmin(num_matches + noise)]]
+            word_to_match: Word = xw[active_subgraph[np.argmin(num_matches + noise)]]
             matches = word_to_match.find_matches(word_list)
             if not matches:
                 dead_end_states.add(xw.hashable_state(active_subgraph))
-                return
+                return False
             else:
                 noisy_matches = matches.rescore(
                     lambda _, s: s * np.random.lognormal(0.0, 0.1 * temperature)
                 )
-                new_xw = xw.copy()
+                old_value = word_to_match.value
                 # temp fill for subgraph calculation
-                assert new_xw._dependency_graph is not xw._dependency_graph
-                new_xw[word_to_match.index] = noisy_matches.words[0]
+                xw[word_to_match.index] = noisy_matches.words[0]
                 new_subgraphs = [
                     s
-                    for s in new_xw.get_disconnected_open_subgrids()
+                    for s in xw.get_disconnected_open_subgrids()
                     if set(s).issubset(set(active_subgraph))
                 ]
                 for match in noisy_matches.words:
                     if timeout and time.time() > start_time + timeout:
-                        return
-                    new_xw[word_to_match.index] = match
-                    display_context.update(new_xw._text_grid())
+                        xw[word_to_match.index] = old_value
+                        return False
+                    xw[word_to_match.index] = match
+                    display_context.update(xw._text_grid())
 
-                    fill = new_xw
                     for new_subgraph in sorted(new_subgraphs, key=len):
-                        fill = recurse_subgraph_fill(
-                            fill, new_subgraph, display_context
-                        )
-                        if not fill:
+                        if not recurse_subgraph_fill(new_subgraph, display_context):
                             break
                     else:
-                        return fill
+                        return True
+                xw[word_to_match.index] = old_value
+                return False
 
         with Live(self._text_grid(), refresh_per_second=4, transient=True) as live:
-            solution = self
             for subgraph in sorted(subgraphs, key=len):
-                solution = recurse_subgraph_fill(solution, subgraph, live)
-                if solution is not None:
-                    live.update(solution._text_grid(), refresh=True)
+                if recurse_subgraph_fill(subgraph, live):
+                    live.update(xw._text_grid(), refresh=True)
                 else:
                     return
-        return solution
+            else:
+                return xw
 
     def _text_grid(self, numbers: bool = False) -> Table:
         """Returns a rich Table that displays the crossword.
