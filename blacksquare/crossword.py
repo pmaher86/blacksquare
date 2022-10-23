@@ -6,6 +6,7 @@ import time
 from secrets import token_hex
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
+import networkx as nx
 import numpy as np
 import pdfkit
 import puz
@@ -87,6 +88,7 @@ class Crossword:
         self._across = np.zeros_like(self._grid, dtype=int)
         self._down = np.zeros_like(self._grid, dtype=int)
         self._words = {}
+        self._dependency_graph: nx.classes.graph.Graph = None
         self._parse_grid()
 
         self.word_list = word_list if word_list is not None else DEFAULT_WORDLIST
@@ -372,6 +374,11 @@ class Crossword:
                 self, DOWN, down_num, clue=old_word.clue if old_word is not None else ""
             )
         self._words = new_words
+        edge_list = {
+            w.index: [c.index for c in w.crosses if c and c.is_open()]
+            for w in self.iterwords(only_open=True)
+        }
+        self._dependency_graph = nx.from_dict_of_lists(edge_list)
 
     def _get_direction_numbers(self, direction: Direction) -> np.ndarray:
         """An array indicating the word number for each cell for a given
@@ -490,10 +497,24 @@ class Crossword:
         """
         if not isinstance(value, str) or len(self[word_index]) != len(value):
             raise ValueError
+        direction = word_index[0]
         word_mask = self._get_word_mask(word_index)
         cells = self._grid[word_mask]
+        cross_indices = [
+            (direction.opposite, n)
+            for n in self._get_direction_numbers(direction.opposite)[word_mask]
+        ]
         for i in range(len(value)):
             cells[i].value = value[i]
+            edge = (word_index, cross_indices[i])
+            if cells[i].value == EMPTY:
+                self._dependency_graph.add_edge(*edge)
+            elif edge in self._dependency_graph.edges:
+                self._dependency_graph.remove_edge(*edge)
+        for wi in [word_index] + cross_indices:
+            word = self[wi]
+            if not word.is_open() and wi in self._dependency_graph.nodes:
+                self._dependency_graph.remove_node(wi)
 
     def set_cell(self, index: CellIndex, value: CellValue) -> None:
         """Sets a cell to a new value.
@@ -518,6 +539,14 @@ class Crossword:
             self._parse_grid()
         else:
             cell.value = value
+            edge = ((ACROSS, self._across[index]), (DOWN, self._down[index]))
+            if cell.value == EMPTY:
+                self._dependency_graph.add_edge(*edge)
+            elif edge in self._dependency_graph.edges:
+                self._dependency_graph.remove_edge(*edge)
+                for wi in edge:
+                    if not self[wi].is_open() and wi in self._dependency_graph.nodes:
+                        self._dependency_graph.remove_node(wi)
 
     def copy(self) -> Crossword:
         """Returns a copy of the current crossword, with all linked objects (Words and
@@ -528,6 +557,20 @@ class Crossword:
             Crossword: A copy of the current Crossword object.
         """
         return copy.deepcopy(self)
+
+    def get_disconnected_open_subgrids(self) -> List[List[Word]]:
+        """Returns a list of open subgrids, as represented by a list of words. An open
+        subgrid is a set of words whose fill can in principle depend on each other. For
+        instance, if the only the northwest and southeast corners are a puzzle are open,
+        such that they can be filled completely independently, the words in those two
+        areas will be returned as separate subgrids.
+
+        Returns:
+            List[List[Word]]: A list of open subgrids.
+        """
+        return [
+            sorted(list(cc)) for cc in nx.connected_components(self._dependency_graph)
+        ]
 
     def fill(
         self,
