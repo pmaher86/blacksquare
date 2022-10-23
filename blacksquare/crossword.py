@@ -125,6 +125,7 @@ class Crossword:
         copied._words = copy.deepcopy(self._words)
         for word in copied._words.values():
             word._parent = copied
+        copied._dependency_graph = copy.deepcopy(self._dependency_graph)
         return copied
 
     def __repr__(self):
@@ -572,10 +573,26 @@ class Crossword:
             sorted(list(cc)) for cc in nx.connected_components(self._dependency_graph)
         ]
 
+    def hashable_state(
+        self, word_indices: List[WordIndex]
+    ) -> Tuple[Tuple[WordIndex, str], ...]:
+        """Returns a list of tuple of (word index, current value) pairs in sorted order.
+        This provides a hashable object describing the state of the grid which can be
+        compared between different Crossword objects.
+
+        Args:
+            word_indices (List[WordIndex]): The list of word indices of interest.
+
+        Returns:
+            Tuple[Tuple[WordIndex, str], ...]: A tuple of (word index, value) tuples
+        """
+        sorted_indices = sorted(word_indices)
+        return tuple((i, self[i].value) for i in sorted_indices)
+
     def fill(
         self,
         word_list: Optional[WordList] = None,
-        timeout: Optional[int] = 30,
+        timeout: Optional[float] = 30.0,
         temperature: float = 0,
     ) -> Optional[Crossword]:
         """Searches for a possible fill, and returns the result as a new Crossword
@@ -591,38 +608,64 @@ class Crossword:
             Optional[Crossword]: The filled Crossword. Returns None if the search is
                 exhausted or the timeout is hit.
         """
+        dead_end_states = set()
+        subgraphs = self.get_disconnected_open_subgrids()
         start_time = time.time()
         word_list = word_list if word_list is not None else self.word_list
 
-        def recurse_solve(xw: Crossword, display_context: Live) -> Optional[Crossword]:
-            open_words = [w for w in xw.iterwords() if w.is_open()]
-            if len(open_words) == 0:
+        def recurse_subgraph_fill(
+            xw: Crossword, active_subgraph: List[WordIndex], display_context: Live
+        ) -> Optional[Crossword]:
+            if not active_subgraph:
                 return xw
-            num_matches = np.array([len(word_list.find_matches(w)) for w in open_words])
+            if xw.hashable_state(active_subgraph) in dead_end_states:
+                return
+            num_matches = np.array(
+                [len(word_list.find_matches(xw[i])) for i in active_subgraph]
+            )
             noise = np.abs(np.random.normal(scale=num_matches)) * temperature
-            word_to_match = open_words[np.argmin(num_matches + noise)]
+            word_to_match = xw[active_subgraph[np.argmin(num_matches + noise)]]
             matches = word_to_match.find_matches(word_list)
-            if len(matches) == 0:
+            if not matches:
+                dead_end_states.add(xw.hashable_state(active_subgraph))
                 return
             else:
                 noisy_matches = matches.rescore(
                     lambda _, s: s * np.random.lognormal(0.0, 0.1 * temperature)
                 )
-                new_xw = copy.deepcopy(xw)
+                new_xw = xw.copy()
+                # temp fill for subgraph calculation
+                assert new_xw._dependency_graph is not xw._dependency_graph
+                new_xw[word_to_match.index] = noisy_matches.words[0]
+                new_subgraphs = [
+                    s
+                    for s in new_xw.get_disconnected_open_subgrids()
+                    if set(s).issubset(set(active_subgraph))
+                ]
                 for match in noisy_matches.words:
                     if timeout and time.time() > start_time + timeout:
                         return
                     new_xw[word_to_match.index] = match
                     display_context.update(new_xw._text_grid())
-                    fill = recurse_solve(new_xw, live)
-                    if fill:
+
+                    fill = new_xw
+                    for new_subgraph in sorted(new_subgraphs, key=len):
+                        fill = recurse_subgraph_fill(
+                            fill, new_subgraph, display_context
+                        )
+                        if not fill:
+                            break
+                    else:
                         return fill
 
         with Live(self._text_grid(), refresh_per_second=4, transient=True) as live:
-            solution = recurse_solve(self, live)
-            if solution is not None:
-                live.update(solution._text_grid(), refresh=True)
-
+            solution = self
+            for subgraph in sorted(subgraphs, key=len):
+                solution = recurse_subgraph_fill(solution, subgraph, live)
+                if solution is not None:
+                    live.update(solution._text_grid(), refresh=True)
+                else:
+                    return
         return solution
 
     def _text_grid(self, numbers: bool = False) -> Table:
