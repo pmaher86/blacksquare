@@ -79,6 +79,14 @@ class TestParsing:
             if k not in ((ACROSS, 3), (DOWN, 3)):
                 assert c == ""
 
+    def test_single_letter(self):
+        grid = [['#', '#', '#', '#', 'A'],
+                ['B', 'A', 'D', '#', 'C'],
+                ['#', '#', '#', '#', 'E']]
+        xw = Crossword(grid=grid)
+        assert xw[ACROSS, 2].value == "BAD"
+
+
 
 class TestConversion:
     def test_to_puz(self, xw, tmp_path):

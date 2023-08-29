@@ -329,17 +329,17 @@ class Crossword:
         starts_down, starts_across = (
             np.equal(x, BLACK) for x in (shifted_down, shifted_right)
         )
-        too_short_down, too_short_across = (
-            np.equal(x, BLACK) for x in (shifted_up, shifted_left)
-        )
+        too_short_down = np.equal(shifted_up, BLACK) & np.equal(shifted_down, BLACK)
+        too_short_across = np.equal(shifted_left, BLACK) & np.equal(shifted_right, BLACK)
+
         starts_down = starts_down & ~too_short_down
         starts_across = starts_across & ~too_short_across
         needs_num = is_open & (starts_down | starts_across)
         self._numbers = np.reshape(np.cumsum(needs_num), self._grid.shape) * needs_num
         self._across = (
-            np.maximum.accumulate(starts_across * self._numbers, axis=1) * is_open
+            np.maximum.accumulate(starts_across * self._numbers, axis=1) * (is_open & ~too_short_across)
         )
-        self._down = np.maximum.accumulate(starts_down * self._numbers) * is_open
+        self._down = np.maximum.accumulate(starts_down * self._numbers) * (is_open & ~too_short_down)
 
         def get_cells_to_nums(ordered_nums: np.ndarray) -> Dict[Tuple[int, ...], int]:
             flattened = ordered_nums.ravel()
