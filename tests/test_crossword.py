@@ -82,7 +82,7 @@ class TestParsing:
     def test_single_letter(self):
         grid = [['#', '#', '#', '#', 'A'],
                 ['B', 'A', 'D', '#', 'C'],
-                ['#', '#', '#', '#', 'E']]
+                ['#', '#', '#', '#', 'T']]
         xw = Crossword(grid=grid)
         assert xw[ACROSS, 2].value == "BAD"
 
@@ -102,7 +102,7 @@ class TestConversion:
     def test_to_pdf(self, xw, tmp_path):
         filename = tmp_path / "test.pdf"
         xw.to_pdf(filename, ["Line 1", "Line 2"])
-        assert tmp_path.exists()
+        assert tmp_path.exists() 
 
 
 class TestCrosswordProperties:
