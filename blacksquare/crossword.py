@@ -246,7 +246,7 @@ class Crossword:
             </tbody></table>
             </body></html>
         """
-        merger = PyPDF2.PdfFileMerger()
+        merger = PyPDF2.PdfMerger()
         for html_page in [grid_html, clue_html]:
             pdf = pdfkit.from_string(
                 html_page,
@@ -260,7 +260,7 @@ class Crossword:
                     "encoding": "UTF-8",
                 },
             )
-            merger.append(PyPDF2.PdfFileReader(io.BytesIO(pdf)))
+            merger.append(PyPDF2.PdfReader(io.BytesIO(pdf)))
         merger.write(str(filename))
         merger.close()
 
