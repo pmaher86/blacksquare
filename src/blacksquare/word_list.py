@@ -4,12 +4,12 @@ import io
 import re
 from collections import defaultdict
 from functools import lru_cache
+from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, NamedTuple, Optional, Union
 
 import numpy as np
 import pandas as pd
-import pkg_resources
 
 from blacksquare.types import SpecialCellValue
 from blacksquare.utils import sum_by_group
@@ -326,4 +326,5 @@ def _normalize(word: str) -> str:
     return word.upper().replace(" ", "")
 
 
-DEFAULT_WORDLIST = WordList(pkg_resources.resource_stream(__name__, "xwordlist.dict"))
+# DEFAULT_WORDLIST = WordList(pkg_resources.resource_stream(__name__, "xwordlist.dict"))
+DEFAULT_WORDLIST = WordList(files("blacksquare").joinpath("xwordlist.dict"))

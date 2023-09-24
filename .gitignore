@@ -1,7 +1,9 @@
 .vscode/
 venv/
+.venv/
 **/__pycache__
 dist/
+build/
 blacksquare.egg-info/
 .python-version
 .ipynb_checkpoints/
