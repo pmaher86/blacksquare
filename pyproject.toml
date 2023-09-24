@@ -1,6 +1,46 @@
 [build-system]
 requires = [
-    "setuptools>=42",
-    "wheel"
+    "setuptools>=42", "wheel", "setuptools-scm"
 ]
-build-backend = "setuptools.build_meta"
+
+[project]
+name = "blacksquare"
+description = "A package for creating crossword puzzles"
+authors = [
+    { name = "Patrick Maher", email = "pmaher86@gmail.com" }
+]
+readme = "README.md"
+dependencies = [
+    "networkx",
+    "numpy",
+    "pandas",
+    "pdfkit",
+    "puzpy",
+    "pypdf",
+    "rich",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.9"
+dynamic = ["version"]
+
+[project.urls]
+Source = "https://github.com/pmaher86/blacksquare"
+
+[project.optional-dependencies]
+dev = [
+    "pip-tools",
+    "pytest",
+]
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+blacksquare = ["*.dict"]

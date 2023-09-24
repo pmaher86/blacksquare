@@ -10,8 +10,8 @@ import networkx as nx
 import numpy as np
 import pdfkit
 import puz
-import PyPDF2
 import rich.box
+from pypdf import PdfReader, PdfWriter
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
@@ -246,7 +246,7 @@ class Crossword:
             </tbody></table>
             </body></html>
         """
-        merger = PyPDF2.PdfMerger()
+        merger = PdfWriter()
         for html_page in [grid_html, clue_html]:
             pdf = pdfkit.from_string(
                 html_page,
@@ -260,7 +260,7 @@ class Crossword:
                     "encoding": "UTF-8",
                 },
             )
-            merger.append(PyPDF2.PdfReader(io.BytesIO(pdf)))
+            merger.append(PdfReader(io.BytesIO(pdf)))
         merger.write(str(filename))
         merger.close()
 
