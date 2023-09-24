@@ -37,6 +37,7 @@ dev = [
 ]
 
 [tool.setuptools_scm]
+local_scheme = "no-local-version"
 
 [tool.setuptools.packages.find]
 where = ["src"]
