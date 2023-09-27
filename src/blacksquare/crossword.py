@@ -768,8 +768,8 @@ class Crossword:
         table.xw{suffix} {{table-layout:fixed; background-color:white;width:{width}px;height:{height}px;}}
         td.xw{suffix} {{outline: 2px solid black;outline-offset: -1px;position: relative;font-family: Arial, Helvetica, sans-serif;}}
         tr.xw{suffix} {{background-color: white !important;}}
-        .number{suffix} {{position: absolute;top: 2px;left: 2px;font-size: {num_font}px;font-weight: normal;user-select: none;}}
-        .value{suffix} {{position: absolute;bottom:0;left: 50%;font-weight: bold;font-size: {val_font}px; transform: translate(-50%, 0%);}}
+        .number{suffix} {{position: absolute;top: 2px;left: 2px;font-size: {num_font}px;font-weight: normal;user-select: none; color: black;}}
+        .value{suffix} {{position: absolute;bottom:0;left: 50%;font-weight: bold;font-size: {val_font}px; transform: translate(-50%, 0%); color: black;}}
         .black{suffix} {{background-color: black;}}
         .gray{suffix} {{background-color: lightgrey;}}
         .circle{suffix} {{position: absolute; border-radius: 50%; border: 1px solid black; right: 0px; left: 0px; top: 0px; bottom: 0px;}}

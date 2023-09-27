@@ -108,6 +108,68 @@ ScoredWord(word='MACDUFF', score=25.387070408819042)
 
 
 Custom word lists are supported and can be passed into the `Crossword` constructor or any of the solving methods. The default word list used is the [Crossword Nexus Collaborative Word List](https://github.com/Crossword-Nexus/collaborative-word-list).
+
+## Example: full symmetry puzzles
+As an example of how blacksquare's abstractions allow for non-trivial crossword construction, consider the [June 6 2023 NYT puzzle](https://www.xwordinfo.com/Crossword?date=6/6/2023), which displays not only a rotationaly symmetric grid but a rotationally symmetric *fill*. While this might seem daunting to build, all we have to do is override the `set_word` method of `Crossword` to fill two words at once, and then restrict our wordlist to emordnilaps (words that are also a word when reversed). 
+```python
+class SymmetricCrossword(Crossword):
+    def set_word(self, word_index: WordIndex, value: str) -> None:
+        super().set_word(word_index, value)
+        super().set_word(self.get_symmetric_word_index(word_index), value[::-1])
+
+emordilaps = {}
+for word, score in tqdm(bs.DEFAULT_WORDLIST):
+    reverse_score = bs.DEFAULT_WORDLIST.get_score(word[::-1])
+    if reverse_score:
+        emordilaps[word] = min(score, reverse_score)
+emordilaps_wordlist = bs.WordList(emordilaps)
+
+# Now just construct the puzzle and fill!
+xw = SymmetricCrossword(15)
+filled = [
+    (0, 3), (0, 4), (0, 5), (0, 11), (1, 4), (1, 5), (1, 11),
+    (2, 4), (2, 11), (3, 4), (3, 9), (4, 0), (4, 1), (4, 2),
+    (4, 7), (4, 8), (4, 14), (5, 6), (5, 12), (5, 13), (5, 14), 
+    (6, 5), (6, 10), (7, 3),
+]
+for i in filled:
+    xw[i] = bs.BLACK
+xw.fill(emordnilap_wordlist, temperature=0.3)
+
+┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
+│^F │^E │^N │███│███│███│^S │^N │^I │^P │^S │███│^E │^D │^A │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^L │ I │ A │^R │███│███│^P │ O │ S │ E │ A │███│^V │ E │ R │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^O │ K │ I │ E │███│^R │ E │ W │ A │ R │ D │███│^A │ L │ B │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^G │ O │ R │ T │███│^A │ T │ I │ N │███│^D │^E │ L │ I │ A │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│███│███│███│^R │^A │ P │ S │███│███│^R │ E │ E │ S │ A │███│
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^S │^T │^R │ O │ P │ S │███│^S │^P │ A │ N │ K │███│███│███│
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^R │ E │ E │ S │ A │███│^S │ T │ O │ M │███│^S │^E │^P │^S │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^A │ R │ M │███│^R │^O │ T │ A │ T │ O │^R │███│^M │ R │ A │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^S │ P │ E │^S │███│^M │ O │ T │ S │███│^A │^S │ E │ E │ R │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│███│███│███│^K │^N │ A │ P │ S │███│^S │ P │ O │ R │ T │ S │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│███│^A │^S │ E │ E │ R │███│███│^S │ P │ A │ R │███│███│███│
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^A │ I │ L │ E │ D │███│^N │^I │ T │ A │███│^T │^R │^O │^G │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^B │ L │ A │███│^D │^R │ A │ W │ E │ R │███│^E │ I │ K │ O │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^R │ E │ V │███│^A │ E │ S │ O │ P │███│███│^R │ A │ I │ L │
+├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
+│^A │ D │ E │███│^S │ P │ I │ N │ S │███│███│███│^N │ E │ F │
+└───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
+```
+There's clearly some extra curation that could be done to improve the word list, and we'd need a little more logic to avoid repeat fills and using true palindromes outside of the center. But not bad for a few lines of code!
+
 ## Installation
 `pip install blacksquare`
 
