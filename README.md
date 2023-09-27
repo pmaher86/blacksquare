@@ -117,13 +117,12 @@ class SymmetricCrossword(Crossword):
         super().set_word(word_index, value)
         super().set_word(self.get_symmetric_word_index(word_index), value[::-1])
 
-df = DEFAULT_WORDLIST.frame.copy()
-rev_df = df.assign(word = df["word"].str[::-1])
-# Pandas merge is much faster than explict for loop
-df = df.merge(rev_df, on="word", how="inner", suffixes = ("", "_rev"))
-# Take the minimum score to avoid using words with an ugly reverse
-df["score"] = df[["score", "score_rev"]].min(axis="columns")
-emordnilap_wordlist = WordList(df.set_index("word")["score"].to_dict())
+emordilaps = {}
+for word, score in tqdm(bs.DEFAULT_WORDLIST):
+    reverse_score = bs.DEFAULT_WORDLIST.get_score(word[::-1])
+    if reverse_score:
+        emordilaps[word] = min(score, reverse_score)
+emordilaps_wordlist = bs.WordList(emordilaps)
 
 # Now just construct the puzzle and fill!
 xw = SymmetricCrossword(15)

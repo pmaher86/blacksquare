@@ -175,8 +175,8 @@ class WordList:
         return list(self._words)
     
     @cached_property
-    def _words_set(self) -> set[str]:
-        return set(self._words)
+    def _words_dict(self) -> dict[str, float]:
+        return dict(zip(self._words, self._scores))
 
     @cached_property
     def scores(self) -> list[float]:
@@ -191,12 +191,8 @@ class WordList:
         Returns:
             Optional[float]: The score. None if word is not in word list.
         """
-        words, scores = self._word_scores_by_length[len(word)]
-        score = scores[np.where(words == word)]
-        if len(score) == 1:
-            return score[0]
-        else:
-            return None
+        return self._words_dict.get(word)
+        
 
     @cached_property
     def frame(self) -> pd.DataFrame:
