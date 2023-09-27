@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import re
 from collections import defaultdict
-from functools import lru_cache
+from functools import lru_cache, cached_property
 from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, NamedTuple, Optional, Union
@@ -118,13 +118,13 @@ class WordList:
         self._words, self._scores = norm_words, norm_scores
 
         word_scores_by_length = defaultdict(lambda: ([], []))
-        for w, s in zip(norm_words, norm_scores):
-            word_scores_by_length[len(w)][0].append(w)
-            word_scores_by_length[len(w)][1].append(s)
+        for word, score in zip(norm_words, norm_scores):
+            word_scores_by_length[len(word)][0].append(word)
+            word_scores_by_length[len(word)][1].append(score)
 
         self._word_scores_by_length = {
-            l: (np.array(words, dtype=str), np.array(scores))
-            for l, (words, scores) in word_scores_by_length.items()
+            length: (np.array(words, dtype=str), np.array(scores))
+            for length, (words, scores) in word_scores_by_length.items()
         }
 
     def find_matches(self, word: Word) -> MatchWordList:
@@ -170,12 +170,16 @@ class WordList:
                 len(query_array), np.empty((0,), dtype=str), np.empty((0,), dtype=float)
             )
 
-    @property
-    def words(self) -> List[str]:
+    @cached_property
+    def words(self) -> list[str]:
         return list(self._words)
+    
+    @cached_property
+    def _words_set(self) -> set[str]:
+        return set(self._words)
 
-    @property
-    def scores(self) -> List[float]:
+    @cached_property
+    def scores(self) -> list[float]:
         return list(self._scores)
 
     def get_score(self, word: str) -> Optional[float]:
@@ -194,7 +198,7 @@ class WordList:
         else:
             return None
 
-    @property
+    @cached_property
     def frame(self) -> pd.DataFrame:
         return pd.DataFrame({"word": self._words, "score": self._scores})
 
@@ -209,6 +213,9 @@ class WordList:
         """
         score_mask = self._scores >= threshold
         return WordList(dict(zip(self._words[score_mask], self._scores[score_mask])))
+    
+    def filter(self, filter_fn: Callable[[ScoredWord], bool]) -> WordList:
+        return WordList(dict([w for w in self if filter_fn(w)]))
 
     def __len__(self):
         return len(self._words)
@@ -239,6 +246,8 @@ class WordList:
             {w: s for w, s in zip(self.words + other.words, self.scores + other.scores)}
         )
 
+    def __contains__(self, item):
+        return item in self._words_set
 
 class MatchWordList(WordList):
     """An object representing a WordList matching an open word. This class should not be
