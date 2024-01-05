@@ -39,6 +39,15 @@ class TestCrosswordIndexing:
         with pytest.raises(IndexError):
             xw[bad_index] = "A"
 
+    def test_unchecked_word_indexing(self):
+        xw = Crossword(5, 5, symmetry=None)
+        ind = [1, 2, 3]
+        for i, j in zip(ind, ind[::-1]):
+            xw[i, j] = BLACK
+        xw[DOWN, 1] = "ABCDE"
+        xw[DOWN, 1] = "     "
+        xw.fill()
+
 
 class TestParsing:
     def test_parsing_indices(self):
@@ -80,12 +89,13 @@ class TestParsing:
                 assert c == ""
 
     def test_single_letter(self):
-        grid = [['#', '#', '#', '#', 'A'],
-                ['B', 'A', 'D', '#', 'C'],
-                ['#', '#', '#', '#', 'T']]
+        grid = [
+            ["#", "#", "#", "#", "A"],
+            ["B", "A", "D", "#", "C"],
+            ["#", "#", "#", "#", "T"],
+        ]
         xw = Crossword(grid=grid)
         assert xw[ACROSS, 2].value == "BAD"
-
 
 
 class TestConversion:
@@ -102,7 +112,7 @@ class TestConversion:
     def test_to_pdf(self, xw, tmp_path):
         filename = tmp_path / "test.pdf"
         xw.to_pdf(filename, ["Line 1", "Line 2"])
-        assert tmp_path.exists() 
+        assert tmp_path.exists()
 
 
 class TestCrosswordProperties:

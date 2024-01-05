@@ -81,7 +81,7 @@ class Crossword:
             cells = [Cell(self, (i, j), grid[i][j]) for i, j in np.ndindex(*shape)]
             self._grid = np.array(cells, dtype=object).reshape(shape)
 
-        if symmetry.requires_square and self._num_rows != self._num_cols:
+        if symmetry is not None and symmetry.requires_square and self._num_rows != self._num_cols:
             raise ValueError(f"{symmetry.value} symmetry requires a square grid.")
 
         self._numbers = np.zeros_like(self._grid, dtype=int)
@@ -502,20 +502,22 @@ class Crossword:
         word_mask = self._get_word_mask(word_index)
         cells = self._grid[word_mask]
         cross_indices = [
-            (direction.opposite, n)
+            (direction.opposite, n) if n else None
             for n in self._get_direction_numbers(direction.opposite)[word_mask]
         ]
         for i in range(len(value)):
             cells[i].value = value[i]
-            edge = (word_index, cross_indices[i])
-            if cells[i].value == EMPTY:
+            cross_index = cross_indices[i]
+            edge = (word_index, cross_index) if cross_index else None
+            if cells[i].value == EMPTY and edge:
                 self._dependency_graph.add_edge(*edge)
-            elif edge in self._dependency_graph.edges:
+            elif edge and edge in self._dependency_graph.edges:
                 self._dependency_graph.remove_edge(*edge)
         for wi in [word_index] + cross_indices:
-            word = self[wi]
-            if not word.is_open() and wi in self._dependency_graph.nodes:
-                self._dependency_graph.remove_node(wi)
+            if wi:
+                word = self[wi]
+                if not word.is_open() and wi in self._dependency_graph.nodes:
+                    self._dependency_graph.remove_node(wi)
 
     def set_cell(self, index: CellIndex, value: CellValue) -> None:
         """Sets a cell to a new value.
