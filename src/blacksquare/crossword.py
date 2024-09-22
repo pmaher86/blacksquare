@@ -81,7 +81,11 @@ class Crossword:
             cells = [Cell(self, (i, j), grid[i][j]) for i, j in np.ndindex(*shape)]
             self._grid = np.array(cells, dtype=object).reshape(shape)
 
-        if symmetry is not None and symmetry.requires_square and self._num_rows != self._num_cols:
+        if (
+            symmetry is not None
+            and symmetry.requires_square
+            and self._num_rows != self._num_cols
+        ):
             raise ValueError(f"{symmetry.value} symmetry requires a square grid.")
 
         self._numbers = np.zeros_like(self._grid, dtype=int)
@@ -330,16 +334,20 @@ class Crossword:
             np.equal(x, BLACK) for x in (shifted_down, shifted_right)
         )
         too_short_down = np.equal(shifted_up, BLACK) & np.equal(shifted_down, BLACK)
-        too_short_across = np.equal(shifted_left, BLACK) & np.equal(shifted_right, BLACK)
+        too_short_across = np.equal(shifted_left, BLACK) & np.equal(
+            shifted_right, BLACK
+        )
 
         starts_down = starts_down & ~too_short_down
         starts_across = starts_across & ~too_short_across
         needs_num = is_open & (starts_down | starts_across)
         self._numbers = np.reshape(np.cumsum(needs_num), self._grid.shape) * needs_num
-        self._across = (
-            np.maximum.accumulate(starts_across * self._numbers, axis=1) * (is_open & ~too_short_across)
+        self._across = np.maximum.accumulate(starts_across * self._numbers, axis=1) * (
+            is_open & ~too_short_across
         )
-        self._down = np.maximum.accumulate(starts_down * self._numbers) * (is_open & ~too_short_down)
+        self._down = np.maximum.accumulate(starts_down * self._numbers) * (
+            is_open & ~too_short_down
+        )
 
         def get_cells_to_nums(ordered_nums: np.ndarray) -> Dict[Tuple[int, ...], int]:
             flattened = ordered_nums.ravel()
@@ -486,7 +494,7 @@ class Crossword:
             number = self._get_direction_numbers(direction)[index]
             try:
                 return self[direction, number]
-            except:
+            except IndexError:
                 return None
 
     def set_word(self, word_index: WordIndex, value: str) -> None:
@@ -526,7 +534,7 @@ class Crossword:
             index (CellIndex): The index of the cell.
             value (str): The new value of the cell.
         """
-        cell = self._grid[index]
+        cell: Cell = self._grid[index]
         if value == BLACK:
             cell.value = BLACK
             images = self.get_symmetric_cell_index(index, force_list=True)
@@ -542,14 +550,20 @@ class Crossword:
             self._parse_grid()
         else:
             cell.value = value
-            edge = ((ACROSS, self._across[index]), (DOWN, self._down[index]))
-            if cell.value == EMPTY:
-                self._dependency_graph.add_edge(*edge)
-            elif edge in self._dependency_graph.edges:
-                self._dependency_graph.remove_edge(*edge)
-                for wi in edge:
-                    if not self[wi].is_open() and wi in self._dependency_graph.nodes:
-                        self._dependency_graph.remove_node(wi)
+            words = (cell.get_parent_word(ACROSS), cell.get_parent_word(DOWN))
+            if all([w is not None for w in words]):
+                edge = tuple(w.index for w in words)
+                if cell.value == EMPTY:
+                    self._dependency_graph.add_edge(*edge)
+                elif edge in self._dependency_graph.edges:
+                    self._dependency_graph.remove_edge(*edge)
+            for word in words:
+                if (
+                    word is not None
+                    and not word.is_open()
+                    and word.index in self._dependency_graph.nodes
+                ):
+                    self._dependency_graph.remove_node(word.index)
 
     def copy(self) -> Crossword:
         """Returns a copy of the current crossword, with all linked objects (Words and
@@ -571,6 +585,7 @@ class Crossword:
         Returns:
             List[List[Word]]: A list of open subgrids.
         """
+
         return [
             sorted(list(cc)) for cc in nx.connected_components(self._dependency_graph)
         ]
