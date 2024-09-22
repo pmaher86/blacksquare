@@ -195,6 +195,15 @@ class TestCrosswordFill:
         solution = xw.fill()
         assert solution is None
 
+    def test_filled_by_setting_letter(self):
+        xw = Crossword(5, symmetry=None)
+        for i in range(5):
+            for j in range(4):
+                xw[i, j] = BLACK
+            xw[i, 4] = "A"
+        result = xw.fill()
+        assert result is not None
+
 
 def test_symmetry_requirements():
     with pytest.raises(ValueError):
