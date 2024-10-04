@@ -28,6 +28,7 @@ class Direction(Enum):
 
 class SpecialCellValue(Enum):
     "An enum representing blank and empty cell values in a crossword."
+
     BLACK = "Black"
     EMPTY = "Empty"
 

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from blacksquare import ACROSS, BLACK, DOWN, EMPTY, Crossword, WordList
@@ -104,7 +103,7 @@ class TestConversion:
         xw.to_puz(filename)
         assert tmp_path.exists()
         loaded = Crossword.from_puz(filename)
-        assert all(l == x for l, x in zip(loaded.itercells(), xw.itercells()))
+        assert all(x == y for x, y in zip(loaded.itercells(), xw.itercells()))
 
     def test_from_puz(self):
         Crossword.from_puz(Path(__file__).parent / "dummy.puz")

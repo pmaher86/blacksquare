@@ -1,14 +1,10 @@
 [build-system]
-requires = [
-    "setuptools>=42", "wheel", "setuptools-scm"
-]
+requires = ["setuptools>=42", "wheel", "setuptools-scm"]
 
 [project]
 name = "blacksquare"
 description = "A package for creating crossword puzzles"
-authors = [
-    { name = "Patrick Maher", email = "pmaher86@gmail.com" }
-]
+authors = [{ name = "Patrick Maher", email = "pmaher86@gmail.com" }]
 readme = "README.md"
 dependencies = [
     "networkx",
@@ -31,10 +27,7 @@ dynamic = ["version"]
 Source = "https://github.com/pmaher86/blacksquare"
 
 [project.optional-dependencies]
-dev = [
-    "pip-tools",
-    "pytest",
-]
+dev = ["pre-commit", "pytest", "uv"]
 
 [tool.setuptools_scm]
 local_scheme = "no-local-version"

@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING, List, Optional, Union
 import numpy as np
 
 from blacksquare.types import Direction, SpecialCellValue, WordIndex
-from blacksquare.word_list import (INVERSE_CHARACTER_FREQUENCIES,
-                                   MatchWordList, WordList)
+from blacksquare.word_list import INVERSE_CHARACTER_FREQUENCIES, MatchWordList, WordList
 
 if TYPE_CHECKING:
     from blacksquare.cell import Cell
@@ -137,7 +136,8 @@ class Word:
             per_letter_scores = [
                 letter_scores_per_index[i].get(word[i], 0)
                 * INVERSE_CHARACTER_FREQUENCIES.get(word[i], 1)
-                for i in open_indices if i in letter_scores_per_index
+                for i in open_indices
+                if i in letter_scores_per_index
             ]
             return np.log(np.prod(per_letter_scores) + 1) * score
 

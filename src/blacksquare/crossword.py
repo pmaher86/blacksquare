@@ -211,7 +211,7 @@ class Crossword:
             <div style='font-size:18pt;'>
                 {header_html}
             </div>
-            <div style='position:absolute;left:50%;top:50%;transform: translate(-50%, -50%);'> 
+            <div style='position:absolute;left:50%;top:50%;transform: translate(-50%, -50%);'>
                 {self._grid_html(size_px=600)}
             </div>
             </body></html>

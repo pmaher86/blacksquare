@@ -110,7 +110,7 @@ ScoredWord(word='MACDUFF', score=25.387070408819042)
 Custom word lists are supported and can be passed into the `Crossword` constructor or any of the solving methods. The default word list used is the [Crossword Nexus Collaborative Word List](https://github.com/Crossword-Nexus/collaborative-word-list).
 
 ## Example: full symmetry puzzles
-As an example of how blacksquare's abstractions allow for non-trivial crossword construction, consider the [June 6 2023 NYT puzzle](https://www.xwordinfo.com/Crossword?date=6/6/2023), which displays not only a rotationaly symmetric grid but a rotationally symmetric *fill*. While this might seem daunting to build, all we have to do is override the `set_word` method of `Crossword` to fill two words at once, and then restrict our wordlist to emordnilaps (words that are also a word when reversed). 
+As an example of how blacksquare's abstractions allow for non-trivial crossword construction, consider the [June 6 2023 NYT puzzle](https://www.xwordinfo.com/Crossword?date=6/6/2023), which displays not only a rotationaly symmetric grid but a rotationally symmetric *fill*. While this might seem daunting to build, all we have to do is override the `set_word` method of `Crossword` to fill two words at once, and then restrict our wordlist to emordnilaps (words that are also a word when reversed).
 ```python
 class SymmetricCrossword(Crossword):
     def set_word(self, word_index: WordIndex, value: str) -> None:
@@ -129,7 +129,7 @@ xw = SymmetricCrossword(15)
 filled = [
     (0, 3), (0, 4), (0, 5), (0, 11), (1, 4), (1, 5), (1, 11),
     (2, 4), (2, 11), (3, 4), (3, 9), (4, 0), (4, 1), (4, 2),
-    (4, 7), (4, 8), (4, 14), (5, 6), (5, 12), (5, 13), (5, 14), 
+    (4, 7), (4, 8), (4, 14), (5, 6), (5, 12), (5, 13), (5, 14),
     (6, 5), (6, 10), (7, 3),
 ]
 for i in filled:
@@ -176,9 +176,9 @@ There's clearly some extra curation that could be done to improve the word list,
 You'll also need to install [wkhtmltopdf](https://wkhtmltopdf.org/) for .pdf export to work.
 
 ## Future plans
-Blacksquare is not a GUI application and isn't intended to be one. Blacksquare is also not a package for solving crossword puzzles. 
+Blacksquare is not a GUI application and isn't intended to be one. Blacksquare is also not a package for solving crossword puzzles.
 
-Possible extensions include: 
+Possible extensions include:
 - [ ] Other file formats
 - [ ] Other/better filling heuristics
 - [ ] Verifying puzzle validity
