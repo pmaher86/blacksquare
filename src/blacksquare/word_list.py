@@ -173,7 +173,7 @@ class WordList:
     @cached_property
     def words(self) -> list[str]:
         return list(self._words)
-    
+
     @cached_property
     def _words_dict(self) -> dict[str, float]:
         return dict(zip(self._words, self._scores))
@@ -192,7 +192,6 @@ class WordList:
             Optional[float]: The score. None if word is not in word list.
         """
         return self._words_dict.get(word)
-        
 
     @cached_property
     def frame(self) -> pd.DataFrame:
@@ -209,7 +208,7 @@ class WordList:
         """
         score_mask = self._scores >= threshold
         return WordList(dict(zip(self._words[score_mask], self._scores[score_mask])))
-    
+
     def filter(self, filter_fn: Callable[[ScoredWord], bool]) -> WordList:
         return WordList(dict([w for w in self if filter_fn(w)]))
 
@@ -244,6 +243,7 @@ class WordList:
 
     def __contains__(self, item):
         return item in self._words_set
+
 
 class MatchWordList(WordList):
     """An object representing a WordList matching an open word. This class should not be

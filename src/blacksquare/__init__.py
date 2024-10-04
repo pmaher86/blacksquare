@@ -5,3 +5,14 @@ from blacksquare.word_list import DEFAULT_WORDLIST, WordList
 
 BLACK, EMPTY = SpecialCellValue.BLACK, SpecialCellValue.EMPTY
 ACROSS, DOWN = Direction.ACROSS, Direction.DOWN
+
+__all__ = [
+    "Crossword",
+    "Symmetry",
+    "DEFAULT_WORDLIST",
+    "WordList",
+    "BLACK",
+    "EMPTY",
+    "ACROSS",
+    "DOWN",
+]
