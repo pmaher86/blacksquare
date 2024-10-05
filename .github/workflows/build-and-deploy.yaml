@@ -1,6 +1,7 @@
 name: Publish Python 🐍 distribution 📦 to PyPI and TestPyPI
 
 on: push
+  branch
 
 jobs:
   build:
@@ -99,6 +100,7 @@ jobs:
     needs:
     - build
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
 
     environment:
       name: testpypi
