@@ -30,7 +30,7 @@ Source = "https://github.com/pmaher86/blacksquare"
 dev = ["pre-commit", "pytest", "uv"]
 
 [tool.setuptools_scm]
-local_scheme = "no-local-version"
+# local_scheme = "no-local-version"
 
 [tool.setuptools.packages.find]
 where = ["src"]
