@@ -8,15 +8,14 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import networkx as nx
 import numpy as np
-import pdfkit
 import puz
 import rich.box
-from pypdf import PdfReader, PdfWriter
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
 from blacksquare.cell import Cell
+from blacksquare.html import CSS_TEMPLATE
 from blacksquare.symmetry import Symmetry
 from blacksquare.types import (
     CellIndex,
@@ -28,6 +27,13 @@ from blacksquare.types import (
 from blacksquare.utils import is_intlike
 from blacksquare.word import Word
 from blacksquare.word_list import DEFAULT_WORDLIST, WordList
+
+try:
+    import pypdf
+    import weasyprint
+except ImportError:
+    weasyprint = None
+    pypdf = None
 
 BLACK, EMPTY = SpecialCellValue.BLACK, SpecialCellValue.EMPTY
 ACROSS, DOWN = Direction.ACROSS, Direction.DOWN
@@ -203,15 +209,36 @@ class Crossword:
                 name, address, etc.). Each list element will be one line in the header.
         """
 
+        if weasyprint is None:
+            raise ImportError(
+                "Can't import weasyprint, run pip install blacksquare[pdf] to install."
+            )
+
         header_html = "<br />".join(header) if header else ""
         grid_html = f"""
             <html>
-            <head><meta charset="utf-8"></head>
+            <head><meta charset="utf-8">
+            <style>
+            @page {{
+                margin:0.25 in;
+                margin-bottom: 0;
+            }}
+
+            @media print {{
+            div {{
+                break-inside: avoid-page !important;
+            }}
+            }}
+
+
+            </style>
+            </head>
             <body>
-            <div style='font-size:18pt;'>
+            <div style='font-size:14pt; break-after: avoid-page !important;'>
                 {header_html}
             </div>
-            <div style='position:absolute;left:50%;top:50%;transform: translate(-50%, -50%);'>
+            <br /> <br /> <br /> <br />
+            <div style='margin: auto;'>
                 {self._grid_html(size_px=600)}
             </div>
             </body></html>
@@ -235,7 +262,7 @@ class Crossword:
                     table {{
                         text-align:left;
                         width:100%;
-                        font-size:18pt;
+                        font-size:16pt;
                         border-spacing:1rem;
                     }}
                 </style>
@@ -250,21 +277,10 @@ class Crossword:
             </tbody></table>
             </body></html>
         """
-        merger = PdfWriter()
+        merger = pypdf.PdfWriter()
         for html_page in [grid_html, clue_html]:
-            pdf = pdfkit.from_string(
-                html_page,
-                False,
-                options={
-                    "quiet": None,
-                    "margin-top": "0.5in",
-                    "margin-right": "0.5in",
-                    "margin-bottom": "0.5in",
-                    "margin-left": "0.5in",
-                    "encoding": "UTF-8",
-                },
-            )
-            merger.append(PdfReader(io.BytesIO(pdf)))
+            pdf = weasyprint.HTML(string=html_page, encoding="UTF-8").write_pdf()
+            merger.append(pypdf.PdfReader(io.BytesIO(pdf)))
         merger.write(str(filename))
         merger.close()
 
@@ -761,45 +777,45 @@ class Crossword:
         size_px = size_px or self.display_size_px
         # Random suffix is a hack to ensure correct display in Jupyter settings
         suffix = token_hex(4)
-        circle_string = f"<div class='circle{suffix}'> </div>"
-        row_elems = []
-        for r in range(self._num_rows):
-            cells = []
-            for c in range(self._num_cols):
-                number = self._numbers[r, c]
-                cells.append(
-                    f"""<td class='xw{suffix}{f" black{suffix}" if self._grid[r, c] == BLACK else ""}{f" gray{suffix}" if self._grid[r, c].shaded else ""}'>
-                        <div class='number{suffix}'> {number if number else ""}</div>
-                        <div class='value{suffix}'>
-                            {self._grid[r,c].str if self._grid[r,c] != BLACK else ""}
-                        </div>
-                        {circle_string if self._grid[r,c].circled else ""}
-                    </td >"""
-                )
-            row_elems.append(f"<tr class='xw{suffix}'>{''.join(cells)}</tr>")
+        cells = []
+        for c in self.itercells():
+            c.number
+            cell_number_span = f'<span class="cell-number">{c.number or ""}</span>'
+            letter_span = f'<span class="letter">{c.value if c!=BLACK else ""}</span>'
+            circle_span = '<span class="circle"></span>'
+            if c == BLACK:
+                extra_class = " black"
+            elif c.shaded:
+                extra_class = " gray"
+            else:
+                extra_class = ""
+            cell_div = f"""
+            <div class="crossword-cell{suffix}{extra_class}">
+                {cell_number_span}
+                {letter_span}
+                {circle_span if c.circled else ""}
+            </div>
+            """
+            cells.append(cell_div)
         aspect_ratio = self.num_rows / self.num_cols
         cell_size = size_px / max(self.num_rows, self.num_cols)
-        return """
-        <div>
-        <style scoped>
-        table.xw{suffix} {{table-layout:fixed; background-color:white;width:{width}px;height:{height}px;}}
-        td.xw{suffix} {{outline: 2px solid black;outline-offset: -1px;position: relative;font-family: Arial, Helvetica, sans-serif;}}
-        tr.xw{suffix} {{background-color: white !important;}}
-        .number{suffix} {{position: absolute;top: 2px;left: 2px;font-size: {num_font}px;font-weight: normal;user-select: none; color: black;}}
-        .value{suffix} {{position: absolute;bottom:0;left: 50%;font-weight: bold;font-size: {val_font}px; transform: translate(-50%, 0%); color: black;}}
-        .black{suffix} {{background-color: black;}}
-        .gray{suffix} {{background-color: lightgrey;}}
-        .circle{suffix} {{position: absolute; border-radius: 50%; border: 1px solid black; right: 0px; left: 0px; top: 0px; bottom: 0px;}}
-        </style>
-        <table class='xw{suffix}'><tbody>
-            {rows}
-        </tbody</table>
-        </div>
-        """.format(
+        css = CSS_TEMPLATE.format(
+            num_cols=self.num_cols,
             height=size_px * min(1, aspect_ratio),
             width=size_px * min(1, 1 / aspect_ratio),
-            rows="\n".join(row_elems),
+            num_font_size=int(cell_size * 0.3),
+            val_font_size=int(cell_size * 0.6),
+            circle_dim=cell_size - 1,
             suffix=suffix,
-            num_font=int(cell_size * 0.3),
-            val_font=int(cell_size * 0.6),
         )
+        cells_html = "\n".join(cells)
+        return f"""
+        <div>
+            <style scoped>
+                {css}
+            </style>
+            <div class="crossword{suffix}">
+                {cells_html}
+            </div>
+        </div>
+        """
