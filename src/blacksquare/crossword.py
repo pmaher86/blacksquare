@@ -807,13 +807,14 @@ class Crossword:
             circle_dim=cell_size - 1,
             suffix=suffix,
         )
+        cells_html = "\n".join(cells)
         return f"""
         <div>
             <style scoped>
                 {css}
             </style>
             <div class="crossword{suffix}">
-                {"\n".join(cells)}
+                {cells_html}
             </div>
         </div>
         """
