@@ -1,7 +1,7 @@
 # Blacksquare
 ![Build Status](https://github.com/pmaher86/blacksquare/actions/workflows/build-and-test.yaml/badge.svg) ![Documentation Status](https://readthedocs.org/projects/blacksquare/badge/?version=latest)
 
-Blacksquare is a Python package for crossword creators. It aims to be an intuitive interface for working with crossword puzzles programmatically. It also has tools for finding valid fills, and HTML rendering that plugs nicely into Jupyter notebooks. Blacksquare supports import and export from the .puz format via [puzpy](https://github.com/alexdej/puzpy), as well as .pdf export in the [New York Times submission format](https://www.nytimes.com/puzzles/submissions/crossword) (requires [wkhtmltopdf](https://wkhtmltopdf.org/)).
+Blacksquare is a Python package for crossword creators. It aims to be an intuitive interface for working with crossword puzzles programmatically. It also has tools for finding valid fills, and HTML rendering that plugs nicely into Jupyter notebooks. Blacksquare supports import and export from the .puz format via [puzpy](https://github.com/alexdej/puzpy), as well as .pdf export in the [New York Times submission format](https://www.nytimes.com/puzzles/submissions/crossword) (requires the [pdf] extra).
 
 ## Native HTML rendering in Jupyter
 ![Jupyter example](assets/jupyter.png?raw=true)
@@ -173,7 +173,9 @@ There's clearly some extra curation that could be done to improve the word list,
 ## Installation
 `pip install blacksquare`
 
-You'll also need to install [wkhtmltopdf](https://wkhtmltopdf.org/) for .pdf export to work.
+or if you want to enable pdf export
+
+`pip install blacksquare[pdf]`
 
 ## Future plans
 Blacksquare is not a GUI application and isn't intended to be one. Blacksquare is also not a package for solving crossword puzzles.
