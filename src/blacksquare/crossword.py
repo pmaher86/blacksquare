@@ -10,7 +10,6 @@ import networkx as nx
 import numpy as np
 import puz
 import rich.box
-from pypdf import PdfReader, PdfWriter
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
@@ -30,9 +29,11 @@ from blacksquare.word import Word
 from blacksquare.word_list import DEFAULT_WORDLIST, WordList
 
 try:
+    import pypdf
     import weasyprint
 except ImportError:
     weasyprint = None
+    pypdf = None
 
 BLACK, EMPTY = SpecialCellValue.BLACK, SpecialCellValue.EMPTY
 ACROSS, DOWN = Direction.ACROSS, Direction.DOWN
@@ -276,10 +277,10 @@ class Crossword:
             </tbody></table>
             </body></html>
         """
-        merger = PdfWriter()
+        merger = pypdf.PdfWriter()
         for html_page in [grid_html, clue_html]:
             pdf = weasyprint.HTML(string=html_page, encoding="UTF-8").write_pdf()
-            merger.append(PdfReader(io.BytesIO(pdf)))
+            merger.append(pypdf.PdfReader(io.BytesIO(pdf)))
         merger.write(str(filename))
         merger.close()
 
