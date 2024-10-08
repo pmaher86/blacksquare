@@ -627,15 +627,22 @@ class Crossword:
         word_list: Optional[WordList] = None,
         timeout: Optional[float] = 30.0,
         temperature: float = 0,
+        score_filter: Optional[float] = None,
+        allow_repeats: bool = False,
     ) -> Optional[Crossword]:
         """Searches for a possible fill, and returns the result as a new Crossword
         object. Uses a modified depth-first-search algorithm.
 
         Args:
-            timeout (int, optional): The maximum time in seconds to search before
+            word_list (WordList, optional): An optional word list to use instead of the
+                default for the crossword.
+            timeout (float, optional): The maximum time in seconds to search before
                 returning. Defaults to 30. If None, will search until completion.
             temperature (float, optional): A parameter to control randomness. Defaults
                 to 0 (no randomness). Reasonable values are around 1.
+            score_filter: A threshold to apply to the word list before filling.
+            allow_repeats (bool): Whether to allow words that already appear in the
+                grid. Defaults to false.
 
         Returns:
             Optional[Crossword]: The filled Crossword. Returns None if the search is
@@ -645,6 +652,8 @@ class Crossword:
         subgraphs = self.get_disconnected_open_subgrids()
         start_time = time.time()
         word_list = word_list if word_list is not None else self.word_list
+        if score_filter:
+            word_list = word_list.score_filter(score_filter)
         xw = self.copy()
 
         def recurse_subgraph_fill(
@@ -657,7 +666,7 @@ class Crossword:
             )
             noise = np.abs(np.random.normal(scale=num_matches)) * temperature
             word_to_match: Word = xw[active_subgraph[np.argmin(num_matches + noise)]]
-            matches = word_to_match.find_matches(word_list)
+            matches = word_to_match.find_matches(word_list, allow_repeats=allow_repeats)
             if not matches:
                 dead_end_states.add(xw.hashable_state(active_subgraph))
                 return False
@@ -781,7 +790,7 @@ class Crossword:
         for c in self.itercells():
             c.number
             cell_number_span = f'<span class="cell-number">{c.number or ""}</span>'
-            letter_span = f'<span class="letter">{c.value if c!=BLACK else ""}</span>'
+            letter_span = f'<span class="letter">{c.str if c!=BLACK else ""}</span>'
             circle_span = '<span class="circle"></span>'
             if c == BLACK:
                 extra_class = " black"
