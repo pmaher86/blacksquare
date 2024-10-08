@@ -56,6 +56,9 @@ class TestWordList:
         assert new_word_list.words == ["AAA", "XYZ", "ABC", "ZZZ"]
         assert new_word_list.scores == [1.0, 1.0, 0.9, 0.1]
 
+    def test_score_filter(self, word_list):
+        assert len(word_list.score_filter(0.5)) == 6
+
 
 class TestMatchWordList:
     @pytest.fixture
@@ -75,3 +78,7 @@ class TestMatchWordList:
         rescored = matches.rescore(rescore_fn)
         assert rescored.get_score("ABC") == 2.0
         assert rescored.get_score("BCD") == 0.1
+
+    def test_filter_words(self, matches: MatchWordList):
+        assert len(matches) == 5
+        assert len(matches.filter_words(["ABC", "ABB"])) == 3

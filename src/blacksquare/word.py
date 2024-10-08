@@ -43,8 +43,6 @@ class Word:
 
     def __setitem__(self, key, value):
         self.cells[key].value = value
-        # grid_indices = self._parent.get_indices(self.index)
-        # self._parent[grid_indices[key]] = value
 
     @property
     def direction(self) -> Direction:
@@ -69,7 +67,6 @@ class Word:
     def value(self) -> str:
         # TODO: rename to str
         """str: The current fill value of the word"""
-        # return "".join(self._parent.grid[self._parent._get_word_mask(self.index)])
         return "".join([c.str for c in self.cells])
 
     # Todo: array, str?
@@ -105,19 +102,32 @@ class Word:
         else:
             return self._parent[result]
 
-    def find_matches(self, word_list: Optional[WordList] = None) -> MatchWordList:
+    def find_matches(
+        self, word_list: Optional[WordList] = None, allow_repeats: bool = False
+    ) -> MatchWordList:
         """Finds matches for the word, ranking matches by how many valid crosses they
         allow.
 
         Args:
             word_list (Optional[WordList], optional): The word list to use for matching.
-            If None, the default wordlist of the parent crossword is used..
+                If None, the default wordlist of the parent crossword is used.
+            allow_repeats (bool): Whether to include words that are already in the grid.
+                Defaults to False.
 
         Returns:
             MatchWordList: The matching words, scored by compatible crosses.
         """
         word_list = self._parent.word_list if word_list is None else word_list
+        self_len = len(self)
         matches = word_list.find_matches(self)
+        if not allow_repeats:
+            matches = matches.filter_words(
+                [
+                    w.value
+                    for w in self._parent.iterwords()
+                    if len(w) == self_len and not w.is_open()
+                ]
+            )
         open_indices = np.argwhere(
             np.equal(self.cells, SpecialCellValue.EMPTY)
         ).squeeze(axis=1)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import re
 from collections import defaultdict
-from functools import lru_cache, cached_property
+from functools import cached_property, lru_cache
 from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, NamedTuple, Optional, Union
@@ -318,6 +318,20 @@ class MatchWordList(WordList):
             self._word_length, self._words[score_mask], self._scores[score_mask]
         )
 
+    def filter_words(self, words: List[str]) -> MatchWordList:
+        """Returns a new word list with a specific set of words filtered out.
+
+        Args:
+            words: (List[str]): The list of words to filter out.
+
+        Returns:
+            MatchWordList: The new MatchWordlist.
+        """
+        word_mask = ~np.isin(self._words, words)
+        return MatchWordList(
+            self._word_length, self._words[word_mask], self._scores[word_mask]
+        )
+
 
 def _normalize(word: str) -> str:
     """Sanitizes an input word.
@@ -331,5 +345,4 @@ def _normalize(word: str) -> str:
     return word.upper().replace(" ", "")
 
 
-# DEFAULT_WORDLIST = WordList(pkg_resources.resource_stream(__name__, "xwordlist.dict"))
 DEFAULT_WORDLIST = WordList(files("blacksquare").joinpath("xwordlist.dict"))

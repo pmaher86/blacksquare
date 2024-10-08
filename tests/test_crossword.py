@@ -168,6 +168,13 @@ class TestCrosswordProperties:
 class TestCrosswordFill:
     def test_fill(self, xw):
         solution = xw.fill()
+        assert solution[ACROSS, 5].value == "ABB"
+        assert len(set(w.value for w in solution.iterwords())) == len(
+            list(solution.iterwords())
+        )
+
+    def test_fill_with_repeats(self, xw):
+        solution = xw.fill(allow_repeats=True)
         assert solution[ACROSS, 5].value == "BBB"
 
     def test_find_solutions_with_custom_dictionary(self, xw):
@@ -193,6 +200,14 @@ class TestCrosswordFill:
         xw[0, 1] = "Q"
         solution = xw.fill()
         assert solution is None
+
+    def test_unsolvable_if_repeats_needed(self):
+        xw = Crossword(3)
+        word_list = WordList({"AAA": 1})
+        assert xw.fill(word_list) is None
+
+    def test_unsolvable_with_score_filter(self, xw):
+        assert xw.fill(score_filter=1.0) is None
 
     def test_filled_by_setting_letter(self):
         xw = Crossword(5, symmetry=None)
