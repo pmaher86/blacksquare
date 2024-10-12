@@ -591,7 +591,7 @@ class Crossword:
         """
         return copy.deepcopy(self)
 
-    def get_disconnected_open_subgrids(self) -> List[List[Word]]:
+    def get_disconnected_open_subgrids(self) -> List[List[WordIndex]]:
         """Returns a list of open subgrids, as represented by a list of words. An open
         subgrid is a set of words whose fill can in principle depend on each other. For
         instance, if the only the northwest and southeast corners are a puzzle are open,
@@ -677,6 +677,7 @@ class Crossword:
                 old_value = word_to_match.value
                 # temp fill for subgraph calculation
                 xw[word_to_match.index] = noisy_matches.words[0]
+                display_context.update(xw._text_grid())
                 new_subgraphs = [
                     s
                     for s in xw.get_disconnected_open_subgrids()
@@ -695,6 +696,7 @@ class Crossword:
                     else:
                         return True
                 xw[word_to_match.index] = old_value
+                dead_end_states.add(xw.hashable_state(active_subgraph))
                 return False
 
         with Live(self._text_grid(), refresh_per_second=4, transient=True) as live:

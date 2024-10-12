@@ -110,21 +110,38 @@ ScoredWord(word='MACDUFF', score=25.387070408819042)
 Custom word lists are supported and can be passed into the `Crossword` constructor or any of the solving methods. The default word list used is the [Crossword Nexus Collaborative Word List](https://github.com/Crossword-Nexus/collaborative-word-list).
 
 ## Example: full symmetry puzzles
-As an example of how blacksquare's abstractions allow for non-trivial crossword construction, consider the [June 6 2023 NYT puzzle](https://www.xwordinfo.com/Crossword?date=6/6/2023), which displays not only a rotationaly symmetric grid but a rotationally symmetric *fill*. While this might seem daunting to build, all we have to do is override the `set_word` method of `Crossword` to fill two words at once, and then restrict our wordlist to emordnilaps (words that are also a word when reversed).
+As an example of how blacksquare's abstractions allow for non-trivial crossword construction, consider the [June 6 2023 NYT puzzle](https://www.xwordinfo.com/Crossword?date=6/6/2023), which displays not only a rotationaly symmetric grid but a rotationally symmetric *fill*. While this might seem daunting to build, all we have to do is override a couple methods of the base Crossword class, and use some modified wordlists.
 ```python
-class SymmetricCrossword(Crossword):
-    def set_word(self, word_index: WordIndex, value: str) -> None:
+class SymmetricCrossword(bs.Crossword):
+    # This sets symmetric words to be mirror images
+    def set_word(self, word_index, value):
         super().set_word(word_index, value)
         super().set_word(self.get_symmetric_word_index(word_index), value[::-1])
 
-emordilaps = {}
-for word, score in tqdm(bs.DEFAULT_WORDLIST):
-    reverse_score = bs.DEFAULT_WORDLIST.get_score(word[::-1])
-    if reverse_score:
-        emordilaps[word] = min(score, reverse_score)
-emordilaps_wordlist = bs.WordList(emordilaps)
+    # This makes it so that we only track a unique half of the puzzle in the dependency
+    #   graph (needed for the fill algorithm).
+    def get_disconnected_open_subgrids(self):
+        subgrids = super().get_disconnected_open_subgrids()
+        new_subgrids = []
+        for sg in subgrids:
+            new_sg = sorted([min(i, self.get_symmetric_word_index(i)) for i in sg])
+            if new_sg not in new_subgrids:
+                new_subgrids.append(new_sg)
+        return new_subgrids
 
-# Now just construct the puzzle and fill!
+palindromes = {}
+emordnilaps = {}
+for word, score in bs.DEFAULT_WORDLIST:
+    if word == word[::-1]:
+        palindromes[word] = score
+    else:
+        reverse_score = bs.DEFAULT_WORDLIST.get_score(word[::-1])
+        if reverse_score:
+            emordnilaps[word] = min(score, reverse_score)
+palindrome_wordlist = bs.WordList(palindromes)
+emordnilap_wordlist = bs.WordList(emordnilaps)
+
+# Now construct the grid
 xw = SymmetricCrossword(15)
 filled = [
     (0, 3), (0, 4), (0, 5), (0, 11), (1, 4), (1, 5), (1, 11),
@@ -134,41 +151,48 @@ filled = [
 ]
 for i in filled:
     xw[i] = bs.BLACK
-xw.fill(emordnilap_wordlist, temperature=0.3)
+
+# Now fill the central words with palindromes
+central_words = [w for w in xw.iterwords() if w.symmetric_image.index == w.index]
+for cw in central_words:
+    cw.value = palindrome_wordlist.find_matches(cw)[0].word
+
+# And the rest!
+xw.fill(emordnilap_wordlist, score_filter=0.3)
 
 ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐
-│^F │^E │^N │███│███│███│^S │^N │^I │^P │^S │███│^E │^D │^A │
+│^R │^O │^M │███│███│███│^A │^G │^A │^R │^D │███│^M │^E │^D │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^L │ I │ A │^R │███│███│^P │ O │ S │ E │ A │███│^V │ E │ R │
+│^E │ D │ A │^M │███│███│^R │ A │ T │ E │ R │███│^A │ D │ U │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^O │ K │ I │ E │███│^R │ E │ W │ A │ R │ D │███│^A │ L │ B │
+│^N │ A │ N │ U │███│^L │ A │ M │ I │ N │ A │███│^O │ I │ C │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^G │ O │ R │ T │███│^A │ T │ I │ N │███│^D │^E │ L │ I │ A │
+│^E │ Y │ E │ R │███│^O │ M │ E │ N │███│^W │^A │ R │ T │ S │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│███│███│███│^R │^A │ P │ S │███│███│^R │ E │ E │ S │ A │███│
+│███│███│███│^D │^A │ T │ A │███│███│^S │ E │ R │ I │ A │███│
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^S │^T │^R │ O │ P │ S │███│^S │^P │ A │ N │ K │███│███│███│
+│^S │^L │^E │ E │ T │ S │███│^S │^M │ A │ R │ T │███│███│███│
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^R │ E │ E │ S │ A │███│^S │ T │ O │ M │███│^S │^E │^P │^S │
+│^T │ E │ R │ R │ A │███│^S │ T │ A │ B │███│^A │^S │^O │^P │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^A │ R │ M │███│^R │^O │ T │ A │ T │ O │^R │███│^M │ R │ A │
+│^E │ B │ O │███│^R │^A │ C │ E │ C │ A │^R │███│^O │ B │ E │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^S │ P │ E │^S │███│^M │ O │ T │ S │███│^A │^S │ E │ E │ R │
+│^P │ O │ S │^A │███│^B │ A │ T │ S │███│^A │^R │ R │ E │ T │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│███│███│███│^K │^N │ A │ P │ S │███│^S │ P │ O │ R │ T │ S │
+│███│███│███│^T │^R │ A │ M │ S │███│^S │ T │ E │ E │ L │ S │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│███│^A │^S │ E │ E │ R │███│███│^S │ P │ A │ R │███│███│███│
+│███│^A │^I │ R │ E │ S │███│███│^A │ T │ A │ D │███│███│███│
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^A │ I │ L │ E │ D │███│^N │^I │ T │ A │███│^T │^R │^O │^G │
+│^S │ T │ R │ A │ W │███│^N │^E │ M │ O │███│^R │^E │^Y │^E │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^B │ L │ A │███│^D │^R │ A │ W │ E │ R │███│^E │ I │ K │ O │
+│^C │ I │ O │███│^A │^N │ I │ M │ A │ L │███│^U │ N │ A │ N │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^R │ E │ V │███│^A │ E │ S │ O │ P │███│███│^R │ A │ I │ L │
+│^U │ D │ A │███│^R │ E │ T │ A │ R │███│███│^M │ A │ D │ E │
 ├───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┼───┤
-│^A │ D │ E │███│^S │ P │ I │ N │ S │███│███│███│^N │ E │ F │
+│^D │ E │ M │███│^D │ R │ A │ G │ A │███│███│███│^M │ O │ R │
 └───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┴───┘
 ```
-There's clearly some extra curation that could be done to improve the word list, and we'd need a little more logic to avoid repeat fills and using true palindromes outside of the center. But not bad for a few lines of code!
+There's clearly some extra curation that could be done to improve the word list, but not bad for a couple dozen lines of code!
 
 ## Installation
 `pip install blacksquare`

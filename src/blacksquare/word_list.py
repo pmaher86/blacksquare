@@ -222,6 +222,8 @@ class WordList:
         return self.frame._repr_html_()
 
     def __getitem__(self, key) -> ScoredWord:
+        if not isinstance(key, int):
+            raise IndexError
         return ScoredWord(self._words[key], self._scores[key])
 
     def __iter__(self):
