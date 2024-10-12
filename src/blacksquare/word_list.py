@@ -84,20 +84,24 @@ class WordList:
         Raises:
             ValueError: If input type is not recognized
         """
-        if (
-            isinstance(source, str)
-            or isinstance(source, Path)
-            or isinstance(source, io.IOBase)
-        ):
-            df = pd.read_csv(
-                source,
-                sep=";",
-                header=None,
-                names=["word", "score"],
-                dtype={"word": str, "score": float},
-                na_filter=False,
-            )
-            raw_words_scores = df.values
+        if isinstance(source, str) or isinstance(source, Path):
+            if Path(source).suffix == ".npz":
+                loaded = np.load(source)
+                length_keys = [k for k in loaded.keys() if k not in ("words", "scores")]
+                self._words = loaded["words"]
+                self._scores = loaded["scores"]
+                self._word_scores_by_length = {int(k): loaded[k] for k in length_keys}
+                return
+            else:
+                df = pd.read_csv(
+                    source,
+                    sep=";",
+                    header=None,
+                    names=["word", "score"],
+                    dtype={"word": str, "score": float},
+                    na_filter=False,
+                )
+                raw_words_scores = df.values
         elif isinstance(source, list):
             assert len(source) > 0 and isinstance(source[0], str)
             raw_words_scores = [(w, 1) for w in source]
@@ -211,6 +215,12 @@ class WordList:
 
     def filter(self, filter_fn: Callable[[ScoredWord], bool]) -> WordList:
         return WordList(dict([w for w in self if filter_fn(w)]))
+
+    def to_npz(self, file: str | Path) -> None:
+        by_length_str_key = {str(k): v for k, v in self._word_scores_by_length.items()}
+        np.savez_compressed(
+            file, words=self._words, scores=self._scores, **by_length_str_key
+        )
 
     def __len__(self):
         return len(self._words)
@@ -347,4 +357,4 @@ def _normalize(word: str) -> str:
     return word.upper().replace(" ", "")
 
 
-DEFAULT_WORDLIST = WordList(files("blacksquare").joinpath("xwordlist.dict"))
+DEFAULT_WORDLIST = WordList(files("blacksquare").joinpath("word_list.npz"))
