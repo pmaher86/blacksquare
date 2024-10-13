@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -28,10 +28,10 @@ class Word:
         """Returns a new Word object.
 
         Args:
-            parent_crossword (Crossword): The parent crossword for the word.
-            direction (Direction): The direction of the word.
-            number (int): The ordinal number of the word.
-            clue (str, optional): The clue associated with the word. Defaults to "".
+            parent_crossword: The parent crossword for the word.
+            direction: The direction of the word.
+            number: The ordinal number of the word.
+            clue: The clue associated with the word. Defaults to "".
         """
         self.clue = clue
         self._parent = parent_crossword
@@ -51,22 +51,22 @@ class Word:
 
     @property
     def number(self) -> int:
-        """int: The number of the word."""
+        """The number of the word."""
         return self._number
 
     @property
     def index(self) -> WordIndex:
-        """Tuple[Direction, int]: The (direction, number) index of the word."""
+        """The (direction, number) index of the word."""
         return (self.direction, self.number)
 
     @property
-    def cells(self) -> List[Cell]:
+    def cells(self) -> list[Cell]:
         return self._parent.get_word_cells(self.index)
 
     @property
     def value(self) -> str:
         # TODO: rename to str
-        """str: The current fill value of the word"""
+        """The current fill value of the word"""
         return "".join([c.str for c in self.cells])
 
     # Todo: array, str?
@@ -79,21 +79,21 @@ class Word:
         """Does the word contain any blank spaces.
 
         Returns:
-            bool: True if any of the letters are blank.
+            True if any of the letters are blank.
         """
         return np.equal(self.cells, SpecialCellValue.EMPTY).any()
 
     @property
-    def crosses(self) -> List[Word]:
+    def crosses(self) -> list[Word]:
         """Returns the words that cross the current word.
 
         Returns:
-            list[Word]: A list of Word objects corresponding to the crosses.
+            A list of Word objects corresponding to the crosses.
         """
         return [cell.get_parent_word(self.direction.opposite) for cell in self.cells]
 
     @property
-    def symmetric_image(self) -> Optional[Union[Word, List[Word]]]:
+    def symmetric_image(self) -> Word | list[Word] | None:
         result = self._parent.get_symmetric_word_index(self.index)
         if not result:
             return
@@ -103,19 +103,19 @@ class Word:
             return self._parent[result]
 
     def find_matches(
-        self, word_list: Optional[WordList] = None, allow_repeats: bool = False
+        self, word_list: WordList | None = None, allow_repeats: bool = False
     ) -> MatchWordList:
         """Finds matches for the word, ranking matches by how many valid crosses they
         allow.
 
         Args:
-            word_list (Optional[WordList], optional): The word list to use for matching.
-                If None, the default wordlist of the parent crossword is used.
-            allow_repeats (bool): Whether to include words that are already in the grid.
+            word_list: The word list to use for matching. If None, the default wordlist
+                of the parent crossword is used.
+            allow_repeats: Whether to include words that are already in the grid.
                 Defaults to False.
 
         Returns:
-            MatchWordList: The matching words, scored by compatible crosses.
+            The matching words, scored by compatible crosses.
         """
         word_list = self._parent.word_list if word_list is None else word_list
         self_len = len(self)

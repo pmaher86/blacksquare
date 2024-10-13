@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING
 
 from blacksquare.types import CellIndex, CellValue, Direction, SpecialCellValue
 
@@ -35,10 +35,10 @@ class Cell:
         """Get the word to which the cell belongs in the given direction.
 
         Args:
-            direction (Direction): The direction.
+            direction: The direction.
 
         Returns:
-            Word: The parent word.
+            The parent word.
         """
         return self._parent.get_word_at_index(self.index, direction)
 
@@ -55,11 +55,11 @@ class Cell:
         return self._index
 
     @property
-    def number(self) -> Optional[int]:
+    def number(self) -> int | None:
         return self._parent.get_cell_number(self._index)
 
     @property
-    def symmetric_image(self) -> Optional[Union[Cell, List[Cell]]]:
+    def symmetric_image(self) -> Cell | list[Cell] | None:
         result = self.parent_crossword.get_symmetric_cell_index(self.index)
         if not result:
             return
@@ -94,14 +94,13 @@ def _parse_cell_input(value: CellValue) -> CellValue:
     """Helper function to sanitize cell inputs.
 
     Args:
-        value (CellValue): The input value.
+        value: The input value.
 
     Raises:
         ValueError: For invalid cell values.
 
     Returns:
-        CellValue: The cell value, either as a normalized string, or a SpecialCellValue
-        enum.
+        The cell value, either as a normalized string, or a SpecialCellValue enum.
     """
     if isinstance(value, SpecialCellValue):
         return value

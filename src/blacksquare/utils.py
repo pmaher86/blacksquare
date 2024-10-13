@@ -1,17 +1,17 @@
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 
 
-def sum_by_group(groups: np.ndarray, values: np.ndarray) -> Dict:
+def sum_by_group(groups: np.ndarray, values: np.ndarray) -> dict:
     """A utility function to perform grouped summing of values over numpy arrays.
 
     Args:
-        groups (np.ndarray): An array describing what group each value corresponds to.
-        values (np.ndarray): An array of values.
+        groups: An array describing what group each value corresponds to.
+        values: An array of values.
 
     Returns:
-        Dict: A dictionary mapping each unique group the sum of its values.
+        A dictionary mapping each unique group the sum of its values.
     """
     sort_indices = np.argsort(groups)
     sorted_groups = groups[sort_indices]
@@ -25,9 +25,9 @@ def is_intlike(x: Any) -> bool:
     """A helper function for doing type checking on possibly-numpy integers.
 
     Args:
-        x (Any): The input value.
+        x: The input value.
 
     Returns:
-        bool: True if the number is a python integer or a numpy integer.
+        True if the number is a python integer or a numpy integer.
     """
     return isinstance(x, (int, np.integer))

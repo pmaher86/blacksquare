@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import io
 import re
 from collections import defaultdict
 from functools import cached_property, lru_cache
 from importlib.resources import files
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, NamedTuple, Optional, Union
+from typing import TYPE_CHECKING, Callable, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -65,13 +64,7 @@ INVERSE_CHARACTER_FREQUENCIES = {
 class WordList:
     def __init__(
         self,
-        source: Union[
-            str,
-            Path,
-            io.IOBase,
-            List[str],
-            Dict[str, Union[int, float]],
-        ],
+        source: str | Path | list[str] | dict[str, int | float],
     ):
         """Representation of a scored word list.
 
@@ -142,10 +135,10 @@ class WordList:
         """Find matches for a Word object.
 
         Args:
-            word (Word): The word to match.
+            word: The word to match.
 
         Returns:
-            MatchWordList: The matching words as a MatchWordList.
+            The matching words as a MatchWordList.
         """
         return self.find_matches_str(word.value)
 
@@ -155,10 +148,10 @@ class WordList:
         "?", or "_" character.
 
         Args:
-            query (str): The string to match against (e.g. "M???ING")
+            query: The string to match against (e.g. "M???ING")
 
         Returns:
-            MatchWordList: A MatchWordList object containing the matching words.
+            A MatchWordList object containing the matching words.
         """
         query_array = np.array(list(query), dtype=str)
         if len(query_array) in self._word_scores_by_length:
@@ -193,14 +186,14 @@ class WordList:
     def scores(self) -> list[float]:
         return list(self._scores)
 
-    def get_score(self, word: str) -> Optional[float]:
+    def get_score(self, word: str) -> float | None:
         """Return the score for a word.
 
         Args:
-            word (str): The word to get the score for.
+            word: The word to get the score for.
 
         Returns:
-            Optional[float]: The score. None if word is not in word list.
+            The score. None if word is not in word list.
         """
         return self._words_dict.get(word)
 
@@ -212,10 +205,10 @@ class WordList:
         """Returns a new word list containing only the words above the threshold.
 
         Args:
-            threshold (float): The score threshold.
+            threshold: The score threshold.
 
         Returns:
-            WordList: The resulting WordList
+            The resulting WordList.
         """
         score_mask = self._scores >= threshold
         return WordList(dict(zip(self._words[score_mask], self._scores[score_mask])))
@@ -228,7 +221,7 @@ class WordList:
                 input and outputs a bool.
 
         Returns:
-            The resulting WordList
+            The resulting WordList.
         """
         return WordList(dict([w for w in self if filter_fn(w)]))
 
@@ -293,15 +286,15 @@ class MatchWordList(WordList):
         self._word_length = word_length
         self._scores = scores
 
-    def letter_scores_at_index(self, index: int) -> Dict[str, int]:
+    def letter_scores_at_index(self, index: int) -> dict[str, int]:
         """The summed scores of matching letters at a given index.
 
         Args:
-            index (int): The index to look at.
+            index: The index to look at.
 
         Returns:
-            Dict[str, int]: A dict mapping letters to the summed scores of words
-            containing that letter at the input index
+            A dict mapping letters to the summed scores of words containing that letter
+            at the input index.
         """
         if len(self) > 0:
             letters = self._words.view("U1").reshape(self._words.size, -1)[:, index]
@@ -318,14 +311,13 @@ class MatchWordList(WordList):
         function.
 
         Args:
-            rescore_fn (Callable[[str, float], float]): The function mapping the word
-                and old score to new scores. This function should treat zero as invalid.
-            drop_zeros (bool, optional): Whether to remove words with a score of zero.
-                Defaults to True.
+            rescore_fn: The function mapping the word and old score to new scores. This
+                function should treat zero as invalid.
+            drop_zeros: Whether to remove words with a score of zero. Defaults to True.
 
         Returns:
-            MatchWordList: A match word list where new scores are the results of the
-                rescore function times the original score for the word.
+            A match word list where new scores are the results of the rescore function
+            times the original score for the word.
         """
         vectorized_fn = np.vectorize(rescore_fn, otypes=[float])
         new_scores = vectorized_fn(self._words, self._scores)
@@ -344,24 +336,24 @@ class MatchWordList(WordList):
         """Returns a new word list containing only the words above the threshold.
 
         Args:
-            threshold (float): The score threshold.
+            threshold: The score threshold.
 
         Returns:
-            MatchWordList: The resulting MatchWordList
+            The resulting MatchWordList
         """
         score_mask = self._scores >= threshold
         return MatchWordList(
             self._word_length, self._words[score_mask], self._scores[score_mask]
         )
 
-    def filter_words(self, words: List[str]) -> MatchWordList:
+    def filter_words(self, words: list[str]) -> MatchWordList:
         """Returns a new word list with a specific set of words filtered out.
 
         Args:
-            words: (List[str]): The list of words to filter out.
+            words: The list of words to filter out.
 
         Returns:
-            MatchWordList: The new MatchWordlist.
+            The new MatchWordlist.
         """
         word_mask = ~np.isin(self._words, words)
         return MatchWordList(
@@ -373,10 +365,10 @@ def _normalize(word: str) -> str:
     """Sanitizes an input word.
 
     Args:
-        word (str): The input word.
+        word: The input word.
 
     Returns:
-        str: An upper-cased trimmed string.
+        An upper-cased trimmed string.
     """
     return word.upper().replace(" ", "")
 
