@@ -6,19 +6,13 @@ name = "blacksquare"
 description = "A package for creating crossword puzzles"
 authors = [{ name = "Patrick Maher", email = "pmaher86@gmail.com" }]
 readme = "README.md"
-dependencies = [
-    "networkx<3.3", # Pin for Python 3.9 support
-    "numpy",
-    "pandas",
-    "puzpy",
-    "rich",
-]
+dependencies = ["networkx", "numpy", "pandas", "puzpy", "rich"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dynamic = ["version"]
 
 [project.urls]
