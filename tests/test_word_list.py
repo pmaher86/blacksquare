@@ -59,6 +59,24 @@ class TestWordList:
     def test_score_filter(self, word_list):
         assert len(word_list.score_filter(0.5)) == 6
 
+    def test_serialization(self, tmp_path):
+        words = """
+        AAA;1.0
+        BBB;0.99
+        BB;0.5
+        C;0.1
+        """
+        with (tmp_path / "list.dict").open("w") as f:
+            f.write(words)
+
+        xw = Crossword(3)
+        wl = WordList(tmp_path / "list.dict")
+        dict_matches = wl.find_matches(xw[ACROSS, 1])
+        wl.to_npz(tmp_path / "list.npz")
+        wl_from_npz = WordList(tmp_path / "list.npz")
+        npz_matches = wl_from_npz.find_matches(xw[ACROSS, 1])
+        assert dict_matches.words == npz_matches.words
+
 
 class TestMatchWordList:
     @pytest.fixture
