@@ -76,28 +76,39 @@ class WordList:
         """Representation of a scored word list.
 
         Args:
-            source (Union[ str, Path, List[str], Dict[str, Union[int, float]], ]): The
-                source for the word list. Can be a list of strings, a dict of strings
-                to scores, or a path to a .dict file with words in "word;score" format.
-                Words will be normalized and scores will be scaled from 0-1.
+            source: The source for the word list. Can be a list of strings, a dict of
+                strings to scores, a path to a .dict file with words in "word;score"
+                format, or a path to a .npz file (produced to `.to_npz`) Words will be
+                normalized and scores will be scaled from 0-1.
 
         Raises:
             ValueError: If input type is not recognized
         """
-        if (
-            isinstance(source, str)
-            or isinstance(source, Path)
-            or isinstance(source, io.IOBase)
-        ):
-            df = pd.read_csv(
-                source,
-                sep=";",
-                header=None,
-                names=["word", "score"],
-                dtype={"word": str, "score": float},
-                na_filter=False,
-            )
-            raw_words_scores = df.values
+        if isinstance(source, str) or isinstance(source, Path):
+            if Path(source).suffix == ".npz":
+                loaded = np.load(source)
+                length_keys = {
+                    k.split("_")[0]
+                    for k in loaded.keys()
+                    if k not in ("words", "scores")
+                }
+                self._words = loaded["words"]
+                self._scores = loaded["scores"]
+                self._word_scores_by_length = {
+                    int(k): (loaded[f"{k}_words"], loaded[f"{k}_scores"])
+                    for k in length_keys
+                }
+                return
+            else:
+                df = pd.read_csv(
+                    source,
+                    sep=";",
+                    header=None,
+                    names=["word", "score"],
+                    dtype={"word": str, "score": float},
+                    na_filter=False,
+                )
+                raw_words_scores = df.values
         elif isinstance(source, list):
             assert len(source) > 0 and isinstance(source[0], str)
             raw_words_scores = [(w, 1) for w in source]
@@ -210,7 +221,30 @@ class WordList:
         return WordList(dict(zip(self._words[score_mask], self._scores[score_mask])))
 
     def filter(self, filter_fn: Callable[[ScoredWord], bool]) -> WordList:
+        """Returns a new word list filtered by a custom function.
+
+        Args:
+            filtern_fn: The filtering function. Takes a ScoredWord as an
+                input and outputs a bool.
+
+        Returns:
+            The resulting WordList
+        """
         return WordList(dict([w for w in self if filter_fn(w)]))
+
+    def to_npz(self, file: str | Path) -> None:
+        """Serializes word list to a .npz format that is fast to load from disk.
+
+        Args:
+            file: The output file path.
+        """
+        by_length_arrays = {}
+        for k, v in self._word_scores_by_length.items():
+            by_length_arrays[f"{k}_words"] = v[0]
+            by_length_arrays[f"{k}_scores"] = v[1]
+        np.savez_compressed(
+            file, words=self._words, scores=self._scores, **by_length_arrays
+        )
 
     def __len__(self):
         return len(self._words)
@@ -347,4 +381,4 @@ def _normalize(word: str) -> str:
     return word.upper().replace(" ", "")
 
 
-DEFAULT_WORDLIST = WordList(files("blacksquare").joinpath("xwordlist.dict"))
+DEFAULT_WORDLIST = WordList(files("blacksquare").joinpath("word_list.npz"))
