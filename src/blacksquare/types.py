@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import List, Tuple, Union
 
 
 class Direction(Enum):
@@ -33,7 +32,7 @@ class SpecialCellValue(Enum):
     EMPTY = "Empty"
 
     @property
-    def input_str_reprs(self) -> List[str]:
+    def input_str_reprs(self) -> list[str]:
         if self == SpecialCellValue.BLACK:
             return [".", "#"]
         elif self == SpecialCellValue.EMPTY:
@@ -53,6 +52,6 @@ class SpecialCellValue(Enum):
 ACROSS = Direction.ACROSS
 DOWN = Direction.DOWN
 
-WordIndex = Tuple[Direction, int]
-CellIndex = Tuple[int, int]
-CellValue = Union[str, SpecialCellValue]
+WordIndex = tuple[Direction, int]
+CellIndex = tuple[int, int]
+CellValue = str | SpecialCellValue

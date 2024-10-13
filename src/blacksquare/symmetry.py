@@ -1,6 +1,5 @@
 import enum
 from dataclasses import dataclass
-from typing import List, Union
 
 import numpy as np
 
@@ -35,19 +34,19 @@ class Symmetry(enum.Enum):
 
     def apply(
         self, grid: np.ndarray, force_list: bool = False
-    ) -> Union[SymmetryResult, List[SymmetryResult]]:
+    ) -> SymmetryResult | list[SymmetryResult]:
         """Applies the symmetry group to an input array, and returns all images of the
         input under that symmetry.
 
         Args:
-            grid (np.ndarray): The input grid.
-            force_list (bool, optional): Whether to return single-image symmetry groups
-                as lists, for consistent typing. Defaults to False.
+            grid: The input grid.
+            force_list: Whether to return single-image symmetry groups as lists, for
+                consistent typing. Defaults to False.
 
         Returns:
-            Union[SymmetryResult, List[SymmetryResult]]: If the symmetry type has only
-            a single image and force_list is false, the return is a single
-            SymmetryResult. Otherwise, the result is a list of all SymmetryResults.
+            If the symmetry type has only a single image and force_list is false,
+            the return is a single SymmetryResult. Otherwise, the result is a list of
+            all SymmetryResults.
         """
         if self == Symmetry.ROTATIONAL:
             images = SymmetryResult(np.rot90(grid, k=2), False)

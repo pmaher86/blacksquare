@@ -4,7 +4,7 @@ import copy
 import io
 import time
 from secrets import token_hex
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import Any, Iterable, Iterator
 
 import networkx as nx
 import numpy as np
@@ -44,27 +44,26 @@ class Crossword:
 
     def __init__(
         self,
-        num_rows: Optional[int] = None,
-        num_cols: Optional[int] = None,
-        grid: Optional[Union[List[List[str]], np.ndarray]] = None,
-        symmetry: Optional[Symmetry] = Symmetry.ROTATIONAL,
-        word_list: Optional[WordList] = None,
+        num_rows: int | None = None,
+        num_cols: int | None = None,
+        grid: list[list[str]] | np.ndarray | None = None,
+        symmetry: Symmetry | None = Symmetry.ROTATIONAL,
+        word_list: WordList | None = None,
         display_size_px: int = 450,
     ):
         """Creates a new Crossword object.
 
         Args:
-            num_rows (int, optional): The number of rows in the puzzle. Either this or
-                a grid must be provided. If grid is provided, shape will be inferred.
-            num_cols (int, optional): The number of columns in the puzzle. If None, it
-                will either be equal to number of rows or inferred from grid.
-            grid (Union[List[List[str]], np.ndarray]], optional): A 2-D array of
-                letters from which the grid will be initialized. Can be provided
-                instead of num_rows/num_cols.
-            word_list (WordList, optional): The word list to use by default when finding
-                solutions. If None, defaults to the default word list.
-            display_size_px (int): The size in pixels of the largest dimension of the
-                puzzle HTML rendering.
+            num_rows: The number of rows in the puzzle. Either this or a grid must be
+                provided. If grid is provided, shape will be inferred.
+            num_cols: The number of columns in the puzzle. If None, it will either be
+                equal to number of rows or inferred from grid.
+            grid: A 2-D array of letters from which the grid will be initialized. Can be
+                provided instead of num_rows/num_cols.
+            word_list: The word list to use by default when finding solutions. If None,
+                defaults to the default word list.
+            display_size_px: The size in pixels of the largest dimension of the puzzle
+                HTML rendering.
         """
         assert (num_rows is not None) ^ (
             grid is not None
@@ -149,10 +148,10 @@ class Crossword:
         """Creates a Crossword object from a .puz file.
 
         Args:
-            filename (str): The path of the input .puz file.
+            filename: The path of the input .puz file.
 
         Returns:
-            Crossword: A Crossword object.
+            A Crossword object.
         """
         puz_obj = puz.read(filename)
         grid = np.reshape(
@@ -170,7 +169,7 @@ class Crossword:
         """Outputs a .puz file from the Crossword object.
 
         Args:
-            filename (str): The output path.
+            filename: The output path.
         """
         puz_black, puz_empty = ".", "-"
         puz_obj = puz.Puzzle()
@@ -199,14 +198,14 @@ class Crossword:
     def to_pdf(
         self,
         filename: str,
-        header: Optional[List[str]] = None,
+        header: list[str] | None = None,
     ) -> None:
         """Outputs a .pdf file in NYT submission format from the Crossword object.
 
         Args:
-            filename (str): The output path.
-            header (List[str], optional): A list of strings to put on the output (e.g.
-                name, address, etc.). Each list element will be one line in the header.
+            filename: The output path.
+            header: A list of strings to put on the output (e.g. name, address, etc.).
+                Each list element will be one line in the header.
         """
 
         if weasyprint is None:
@@ -286,29 +285,30 @@ class Crossword:
 
     @property
     def num_rows(self) -> int:
-        """int: The number of rows in the puzzle"""
+        """The number of rows in the puzzle"""
         return self._num_rows
 
     @property
     def num_cols(self) -> int:
-        """int: The number of columns in the puzzle"""
+        """The number of columns in the puzzle"""
         return self._num_cols
 
     @property
-    def clues(self) -> Dict[WordIndex, str]:
-        """Dict[WordIndex, str]: A dict mapping word index to clue."""
+    def clues(self) -> dict[WordIndex, str]:
+        """A dict mapping word index to clue."""
         return {index: w.clue for index, w in self._words.items()}
 
     def get_symmetric_cell_index(
         self, index: CellIndex, force_list: bool = False
-    ) -> Optional[Union[CellIndex, List[CellIndex]]]:
+    ) -> CellIndex | list[CellIndex] | None:
         """Gets the index of a symmetric grid cell. Useful for enforcing symmetry.
 
         Args:
-            index (CellIndex): The input index.
+            index: The input cell index.
+            force_list: Whether to require that single indices are returned as a list.
 
         Returns:
-            CellIndex: The index of the cell symmetric to the input.
+            The index (or indices) of the cell symmetric to the input.
         """
         if not self.symmetry:
             return [] if force_list else None
@@ -321,7 +321,16 @@ class Crossword:
 
     def get_symmetric_word_index(
         self, word_index: WordIndex, force_list: bool = False
-    ) -> Optional[Union[WordIndex, List[WordIndex]]]:
+    ) -> WordIndex | list[WordIndex] | None:
+        """Gets the index of a symmetric word. Useful for enforcing symmetry.
+
+        Args:
+            index: The input word index.
+            force_list: Whether to require that single indices are returned as a list.
+
+        Returns:
+            The index (or indices) of the word symmetric to the input.
+        """
         dir = word_index[0]
         mask = self._get_word_mask(word_index)
         if not self.symmetry:
@@ -365,14 +374,14 @@ class Crossword:
             is_open & ~too_short_down
         )
 
-        def get_cells_to_nums(ordered_nums: np.ndarray) -> Dict[Tuple[int, ...], int]:
+        def get_cells_to_nums(ordered_nums: np.ndarray) -> dict[tuple[int, ...], int]:
             flattened = ordered_nums.ravel()
             word_divs = np.flatnonzero(np.diff(flattened, prepend=-1))
             nums = flattened[word_divs]
             groups = np.split(np.arange(len(flattened)), word_divs[1:])
             return dict(zip(map(tuple, groups), nums))
 
-        def get_new_to_old_map(old: np.ndarray, new: np.ndarray) -> Dict[int, int]:
+        def get_new_to_old_map(old: np.ndarray, new: np.ndarray) -> dict[int, int]:
             old_cells_nums = get_cells_to_nums(old)
             new_cells_nums = get_cells_to_nums(new)
             new_to_old = {}
@@ -406,14 +415,13 @@ class Crossword:
         self._dependency_graph = nx.from_dict_of_lists(edge_list)
 
     def _get_direction_numbers(self, direction: Direction) -> np.ndarray:
-        """An array indicating the word number for each cell for a given
-        direction.
+        """An array indicating the word number for each cell for a given direction.
 
         Args:
-            direction (Direction): The desired direction.
+            direction: The desired direction.
 
         Returns:
-            np.ndarray: The grid of word numbers for each cell.
+            The grid of word numbers for each cell.
         """
         if direction == Direction.ACROSS:
             return self._across
@@ -424,43 +432,50 @@ class Crossword:
         """A boolean mask that indicates which grid cells belong to a word.
 
         Args:
-            word_index (WordIndex): The index of the desired word.
+            word_index: The index of the desired word.
 
         Returns:
-            np.ndarray: The grid indicating which cells are in the input word.
+            The grid indicating which cells are in the input word.
         """
         word = self[word_index]
         return self._get_direction_numbers(word.direction) == word.number
 
-    def get_word_cells(self, word_index: WordIndex) -> List[Cell]:
+    def get_word_cells(self, word_index: WordIndex) -> list[Cell]:
+        """Gets the cells for a word index.
+
+        Args:
+            word_index: The word index.
+
+        Returns:
+            The list of Cells in the word.
+        """
         return list(self._grid[self._get_word_mask(word_index)])
 
-    def get_cell_number(self, cell_index: CellIndex) -> Optional[int]:
+    def get_cell_number(self, cell_index: CellIndex) -> int | None:
         """Gets the crossword numeral at a given cell, if it exists.
 
         Args:
-            cell_index (CellIndex): The index of the cell.
+            cell_index: The index of the cell.
 
         Returns:
-            Optional[int]: The crossword number in that cell, if any.
+            The crossword number in that cell, if any.
         """
         number = self._numbers[cell_index]
         if number:
             return number
 
     def iterwords(
-        self, direction: Optional[Direction] = None, only_open: bool = False
+        self, direction: Direction | None = None, only_open: bool = False
     ) -> Iterator[Word]:
         """Method for iterating over the words in the crossword.
 
         Args:
-            direction (Direction, optional): If provided, limits the iterator to only
-                the given direction.
-            only_open(bool): Whether to only return open words. Defaults to False.
+            direction: If provided, limits the iterator to only the given direction.
+            only_open: Whether to only return open words. Defaults to False.
 
         Yields:
-            Iterator[Word]: An iterator of Word objects. Ordered in standard crossword
-            fashion (ascending numbers, across then down).
+            An iterator of Word objects. Ordered in standard crossword fashion
+                (ascending numbers, across then down).
         """
         for word_index in sorted(self._words.keys()):
             if direction is None or direction == self[word_index].direction:
@@ -471,40 +486,36 @@ class Crossword:
         """Method for iterating over the cells in the crossword.
 
         Yields:
-            Iterator[Cell]: An iterator of Cell objects. Ordered left to right, top to
-            bottom.
+            An iterator of Cell objects. Ordered left to right, top to bottom.
         """
         for cell in self._grid.ravel():
             yield cell
 
-    def get_indices(self, word_index: WordIndex) -> List[CellIndex]:
+    def get_indices(self, word_index: WordIndex) -> list[CellIndex]:
         """Gets the list of cell indices for a given word.
 
         Args:
-            word_index (WordIndex): The index of the desired word.
+            word_index: The index of the desired word.
 
         Returns:
-            List[CellIndex]: A list of cell indices that belong to the word.
+            A list of cell indices that belong to the word.
         """
         return [
             (int(x[0]), int(x[1]))
             for x in np.argwhere(self._get_word_mask(word_index)).tolist()
         ]
 
-    def get_word_at_index(
-        self, index: CellIndex, direction: Direction
-    ) -> Optional[Word]:
+    def get_word_at_index(self, index: CellIndex, direction: Direction) -> Word | None:
         """Gets the word that passes through a cell in a given direction.
 
         Args:
-            index (CellIndex): The index of the cell.
-            direction (Direction): The direction of the word.
+            index: The index of the cell.
+            direction: The direction of the word.
 
         Returns:
-            Optional[Word]: The word passing through the index in the provided
-            direction. If the index corresponds to a black square, or there is
-            no word in that direction (an unchecked light) this
-            method returns None.
+            The word passing through the index in the provided direction. If the index
+            corresponds to a black square, or there is no word in that direction (an
+            unchecked light) this method returns None.
         """
         if self[index] != BLACK:
             number = self._get_direction_numbers(direction)[index]
@@ -517,8 +528,8 @@ class Crossword:
         """Sets a word to a new value.
 
         Args:
-            word_index (WordIndex): The index of the word.
-            value (str): The new value of the word.
+            word_index: The index of the word.
+            value: The new value of the word.
         """
         if not isinstance(value, str) or len(self[word_index]) != len(value):
             raise ValueError
@@ -547,8 +558,8 @@ class Crossword:
         """Sets a cell to a new value.
 
         Args:
-            index (CellIndex): The index of the cell.
-            value (str): The new value of the cell.
+            index: The index of the cell.
+            value: The new value of the cell.
         """
         cell: Cell = self._grid[index]
         if value == BLACK:
@@ -587,11 +598,11 @@ class Crossword:
         not affect the original object.
 
         Returns:
-            Crossword: A copy of the current Crossword object.
+            A copy of the current Crossword object.
         """
         return copy.deepcopy(self)
 
-    def get_disconnected_open_subgrids(self) -> List[List[WordIndex]]:
+    def get_disconnected_open_subgrids(self) -> list[list[WordIndex]]:
         """Returns a list of open subgrids, as represented by a list of words. An open
         subgrid is a set of words whose fill can in principle depend on each other. For
         instance, if the only the northwest and southeast corners are a puzzle are open,
@@ -599,7 +610,7 @@ class Crossword:
         areas will be returned as separate subgrids.
 
         Returns:
-            List[List[Word]]: A list of open subgrids.
+            A list of open subgrids.
         """
 
         return [
@@ -607,45 +618,45 @@ class Crossword:
         ]
 
     def hashable_state(
-        self, word_indices: List[WordIndex]
-    ) -> Tuple[Tuple[WordIndex, str], ...]:
+        self, word_indices: list[WordIndex]
+    ) -> tuple[tuple[WordIndex, str], ...]:
         """Returns a list of tuple of (word index, current value) pairs in sorted order.
         This provides a hashable object describing the state of the grid which can be
         compared between different Crossword objects.
 
         Args:
-            word_indices (List[WordIndex]): The list of word indices of interest.
+            word_indices: The list of word indices of interest.
 
         Returns:
-            Tuple[Tuple[WordIndex, str], ...]: A tuple of (word index, value) tuples
+            A tuple of (word index, value) tuples
         """
         sorted_indices = sorted(word_indices)
         return tuple((i, self[i].value) for i in sorted_indices)
 
     def fill(
         self,
-        word_list: Optional[WordList] = None,
-        timeout: Optional[float] = 30.0,
-        temperature: float = 0,
-        score_filter: Optional[float] = None,
+        word_list: WordList | None = None,
+        timeout: float | None = 30.0,
+        temperature: float = 0.0,
+        score_filter: float | None = None,
         allow_repeats: bool = False,
-    ) -> Optional[Crossword]:
+    ) -> Crossword | None:
         """Searches for a possible fill, and returns the result as a new Crossword
         object. Uses a modified depth-first-search algorithm.
 
         Args:
-            word_list (WordList, optional): An optional word list to use instead of the
-                default for the crossword.
-            timeout (float, optional): The maximum time in seconds to search before
-                returning. Defaults to 30. If None, will search until completion.
-            temperature (float, optional): A parameter to control randomness. Defaults
-                to 0 (no randomness). Reasonable values are around 1.
+            word_list: An optional word list to use instead of the default for the
+                crossword.
+            timeout: The maximum time in seconds to search before returning. Defaults to
+                30. If None, will search until completion.
+            temperature: A parameter to control randomness. Defaults to 0 (no
+                randomness). Reasonable values are around 1.
             score_filter: A threshold to apply to the word list before filling.
-            allow_repeats (bool): Whether to allow words that already appear in the
-                grid. Defaults to false.
+            allow_repeats: Whether to allow words that already appear in the grid.
+                Defaults to false.
 
         Returns:
-            Optional[Crossword]: The filled Crossword. Returns None if the search is
+            The filled Crossword. Returns None if the search is
                 exhausted or the timeout is hit.
         """
         dead_end_states = set()
@@ -657,7 +668,7 @@ class Crossword:
         xw = self.copy()
 
         def recurse_subgraph_fill(
-            active_subgraph: List[WordIndex], display_context: Live
+            active_subgraph: list[WordIndex], display_context: Live
         ) -> bool:
             if xw.hashable_state(active_subgraph) in dead_end_states:
                 return False
@@ -712,11 +723,11 @@ class Crossword:
         """Returns a rich Table that displays the crossword.
 
         Args:
-            numbers (bool): If True, prints the numbers in the grid rather
+            numbers: If True, prints the numbers in the grid rather
                 than the letters. Defaults to False.
 
         Returns:
-            Table: A Table object containing the crossword.
+            A Table object containing the crossword.
         """
         table = Table(
             box=rich.box.SQUARE,
@@ -755,15 +766,15 @@ class Crossword:
 
     def _repr_mimebundle_(
         self, include: Iterable[str], exclude: Iterable[str], **kwargs: Any
-    ) -> Dict[str, str]:
+    ) -> dict[str, str]:
         """A display method that handles different IPython environments.
 
         Args:
-            include (Iterable[str]): MIME types to include.
-            exclude (Iterable[str]): MIME types to exclude.
+            include: MIME types to include.
+            exclude: MIME types to exclude.
 
         Returns:
-            Dict[str, str]: A dict containing the outputs.
+            A dict containing the outputs.
         """
 
         html = self._grid_html()
@@ -775,15 +786,15 @@ class Crossword:
             data = {k: v for (k, v) in data.items() if k not in exclude}
         return data
 
-    def _grid_html(self, size_px: Optional[int] = None) -> str:
+    def _grid_html(self, size_px: int | None = None) -> str:
         """Returns an HTML rendering of the puzzle.
 
         Args:
-            size_px (int): The size of the largest dimension in pixels. If None
+            size_px: The size of the largest dimension in pixels. If None
                 provided, defaults to the display_size_px property.
 
         Returns:
-            str: HTML to display the puzzle.
+            HTML to display the puzzle.
         """
         size_px = size_px or self.display_size_px
         # Random suffix is a hack to ensure correct display in Jupyter settings
