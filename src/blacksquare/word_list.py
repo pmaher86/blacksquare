@@ -373,4 +373,4 @@ def _normalize(word: str) -> str:
     return word.upper().replace(" ", "")
 
 
-DEFAULT_WORDLIST = WordList(files("blacksquare").joinpath("word_list.npz"))
+DEFAULT_WORDLIST = WordList(files("blacksquare").joinpath("spreadthewordlist.npz"))
