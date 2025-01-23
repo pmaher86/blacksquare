@@ -107,7 +107,7 @@ ScoredWord(word='MACDUFF', score=25.387070408819042)
 ```
 
 
-Custom word lists are supported and can be passed into the `Crossword` constructor or any of the solving methods. The default word list used is the [Crossword Nexus Collaborative Word List](https://github.com/Crossword-Nexus/collaborative-word-list).
+Custom word lists are supported and can be passed into the `Crossword` constructor or any of the solving methods. The default word list used is from [spread the word(list)](https://www.spreadthewordlist.com/). (Please note that the word list carries a [CC BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.en) license.)
 
 ## Example: full symmetry puzzles
 As an example of how blacksquare's abstractions allow for non-trivial crossword construction, consider the [June 6 2023 NYT puzzle](https://www.xwordinfo.com/Crossword?date=6/6/2023), which displays not only a rotationaly symmetric grid but a rotationally symmetric *fill*. While this might seem daunting to build, all we have to do is override a couple methods of the base Crossword class, and use some modified wordlists.
