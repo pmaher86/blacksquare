@@ -119,6 +119,45 @@ class Word:
         """
         word_list = self._parent.word_list if word_list is None else word_list
         self_len = len(self)
+        open_indices = np.argwhere(
+            np.equal(self.cells, SpecialCellValue.EMPTY)
+        ).squeeze(axis=1)
+
+        if hasattr(word_list, "_inner"):
+            open_pos_list = []
+            letter_weights_list = []
+            for idx in open_indices:
+                cross = self.crosses[idx]
+                if cross is None:
+                    continue
+                cross_index = cross.crosses.index(self)
+                cross_matches = word_list.find_matches(cross)
+                scores_dict = cross_matches.letter_scores_at_index(cross_index)
+                weights = [
+                    scores_dict.get(chr(ord("A") + i), 0.0)
+                    * INVERSE_CHARACTER_FREQUENCIES.get(chr(ord("A") + i), 1.0)
+                    for i in range(26)
+                ]
+                open_pos_list.append(int(idx))
+                letter_weights_list.append(weights)
+
+            inner_res = word_list._inner.fused_cross_matches(
+                self.value, open_pos_list, letter_weights_list
+            )
+            matches = MatchWordList(
+                inner_res.word_length,
+                inner=inner_res,
+            )
+            if not allow_repeats:
+                matches = matches.filter_words(
+                    [
+                        w.value
+                        for w in self._parent.iterwords()
+                        if len(w) == self_len and not w.is_open()
+                    ]
+                )
+            return matches
+
         matches = word_list.find_matches(self)
         if not allow_repeats:
             matches = matches.filter_words(
@@ -128,9 +167,6 @@ class Word:
                     if len(w) == self_len and not w.is_open()
                 ]
             )
-        open_indices = np.argwhere(
-            np.equal(self.cells, SpecialCellValue.EMPTY)
-        ).squeeze(axis=1)
         letter_scores_per_index = {}
         for idx in open_indices:
             cross = self.crosses[idx]

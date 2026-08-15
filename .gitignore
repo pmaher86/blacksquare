@@ -11,3 +11,7 @@ docs/_build/
 docs/_static/
 docs/_templates/
 dev/
+target/
+*.so
+*.pyd
+*.dylib
