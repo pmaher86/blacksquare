@@ -7,31 +7,69 @@ on:
 
 jobs:
   build-wheels:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build wheels on ${{ matrix.os }} (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          # Linux x86_64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            manylinux: auto
+          # Linux aarch64 (ARM64)
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            manylinux: auto
+          # macOS x86_64 (Intel)
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          # macOS aarch64 (Apple Silicon M1/M2/M3/M4)
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          # Windows x86_64 (AMD64)
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: auto
+          target: ${{ matrix.target }}
           args: --release --out dist --find-interpreter
-          sdist: ${{ matrix.os == 'ubuntu-latest' }}
+          manylinux: ${{ matrix.manylinux || 'off' }}
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}
+          name: wheels-${{ matrix.os }}-${{ matrix.target }}
+          path: dist
+
+  build-sdist:
+    name: Build sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
           path: dist
 
   publish-to-pypi:
     name: Publish Python 🐍 distribution 📦 to PyPI
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [build-wheels]
+    needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -41,7 +79,7 @@ jobs:
 
     steps:
       - uses: astral-sh/setup-uv@v5
-      - name: Download all wheels
+      - name: Download all wheels and sdist
         uses: actions/download-artifact@v4
         with:
           pattern: wheels-*
@@ -56,7 +94,7 @@ jobs:
   publish-to-testpypi:
     name: Publish Python 🐍 distribution 📦 to TestPyPI
     if: github.ref == 'refs/heads/main'
-    needs: [build-wheels]
+    needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
     environment:
       name: testpypi
@@ -66,7 +104,7 @@ jobs:
 
     steps:
       - uses: astral-sh/setup-uv@v5
-      - name: Download all wheels
+      - name: Download all wheels and sdist
         uses: actions/download-artifact@v4
         with:
           pattern: wheels-*
