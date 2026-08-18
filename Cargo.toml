@@ -13,3 +13,4 @@ pyo3 = { version = "0.23", features = ["extension-module", "abi3-py310"] }
 numpy = "0.23"
 ahash = "0.8"
 rayon = "1.10"
+flate2 = { version = "1.0", default-features = false, features = ["rust_backend"] }

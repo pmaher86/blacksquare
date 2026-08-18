@@ -133,6 +133,47 @@ impl LengthPartition {
         }
     }
 
+    /// Fast early-exit check to determine if any word matches the pattern.
+    #[inline(always)]
+    pub fn has_match(&self, query: &[u8]) -> bool {
+        let mut constraints = [0usize; 32];
+        let mut n_constraints = 0;
+
+        for (pos, &b) in query.iter().enumerate() {
+            if b >= b'A' && b <= b'Z' {
+                let char_idx = (b - b'A') as usize;
+                constraints[n_constraints] = pos * 26 + char_idx;
+                n_constraints += 1;
+            }
+        }
+
+        if n_constraints == 0 {
+            return self.count > 0;
+        }
+
+        let first_mask = &self.masks[constraints[0]];
+        if n_constraints == 1 {
+            return first_mask.iter().any(|&w| w != 0);
+        }
+
+        for i in 0..self.mask_words_len {
+            let mut w = first_mask[i];
+            if w == 0 {
+                continue;
+            }
+            for &mask_idx in &constraints[1..n_constraints] {
+                w &= self.masks[mask_idx][i];
+                if w == 0 {
+                    break;
+                }
+            }
+            if w != 0 {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Extract matching words and scores from a bitmask.
     pub fn extract_matches(&self, mask: &[u64]) -> (Vec<String>, Vec<f64>) {
         let count_matches: usize = mask.iter().map(|w| w.count_ones() as usize).sum();
@@ -188,6 +229,67 @@ impl LengthPartition {
         letter_scores
     }
 
+    #[inline(always)]
+    pub fn get_word_bytes(&self, word_idx: usize) -> &[u8] {
+        let offset = word_idx * self.length;
+        &self.words_bytes[offset..offset + self.length]
+    }
+
+    #[inline(always)]
+    pub fn get_word_str(&self, word_idx: usize) -> &str {
+        let slice = self.get_word_bytes(word_idx);
+        unsafe { std::str::from_utf8_unchecked(slice) }
+    }
+
+    /// Fused cross scoring returning sorted word indices (zero String allocation).
+    pub fn fused_cross_score_indices(
+        &self,
+        mask: &[u64],
+        open_positions: &[usize],
+        letter_weights_per_pos: &[[f64; 26]],
+        drop_zeros: bool,
+    ) -> Vec<usize> {
+        let count_matches: usize = mask.iter().map(|w| w.count_ones() as usize).sum();
+        let mut scored_indices: Vec<(usize, f64)> = Vec::with_capacity(count_matches);
+        let stride = self.length;
+
+        for (chunk_idx, &bits) in mask.iter().enumerate() {
+            let mut b = bits;
+            while b != 0 {
+                let bit_pos = b.trailing_zeros() as usize;
+                let word_idx = chunk_idx * 64 + bit_pos;
+                if word_idx >= self.count {
+                    break;
+                }
+                let word_score = self.scores[word_idx];
+                let word_offset = word_idx * stride;
+
+                let mut prod = 1.0f64;
+                for (open_idx, &pos) in open_positions.iter().enumerate() {
+                    let ch_byte = self.words_bytes[word_offset + pos];
+                    if ch_byte >= b'A' && ch_byte <= b'Z' {
+                        let ch = (ch_byte - b'A') as usize;
+                        prod *= letter_weights_per_pos[open_idx][ch];
+                    }
+                }
+
+                let final_score = (prod + 1.0).ln() * word_score;
+                if !drop_zeros || final_score > 0.0 {
+                    scored_indices.push((word_idx, final_score));
+                }
+                b &= b - 1;
+            }
+        }
+
+        scored_indices.sort_by(|a, b| {
+            b.1.partial_cmp(&a.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.0.cmp(&b.0))
+        });
+
+        scored_indices.into_iter().map(|(idx, _)| idx).collect()
+    }
+
     /// Fused cross scoring across open positions.
     pub fn fused_cross_score(
         &self,
@@ -231,6 +333,7 @@ impl LengthPartition {
         scored_indices.sort_by(|a, b| {
             b.1.partial_cmp(&a.1)
                 .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.0.cmp(&b.0))
         });
 
         let mut words = Vec::with_capacity(scored_indices.len());
@@ -349,6 +452,48 @@ impl FastWordList {
         Ok(Self::new(entries))
     }
 
+    pub fn default_embedded() -> Arc<FastWordList> {
+        static DEFAULT_WORDLIST_STATIC: std::sync::OnceLock<Arc<FastWordList>> =
+            std::sync::OnceLock::new();
+        DEFAULT_WORDLIST_STATIC
+            .get_or_init(|| {
+                static BYTES: &[u8] = include_bytes!("../data/spreadthewordlist.bin.gz");
+                Arc::new(FastWordList::from_compressed_binary(BYTES))
+            })
+            .clone()
+    }
+
+    pub fn from_compressed_binary(gz_bytes: &[u8]) -> Self {
+        use flate2::read::GzDecoder;
+        use std::io::Read;
+
+        let mut decoder = GzDecoder::new(gz_bytes);
+        let mut uncompressed = Vec::new();
+        decoder
+            .read_to_end(&mut uncompressed)
+            .expect("Failed to decompress embedded wordlist");
+
+        let mut offset = 0;
+        let count =
+            u32::from_le_bytes(uncompressed[offset..offset + 4].try_into().unwrap()) as usize;
+        offset += 4;
+
+        let mut entries: Vec<(String, f64)> = Vec::with_capacity(count);
+        for _ in 0..count {
+            let len = uncompressed[offset] as usize;
+            offset += 1;
+            let word_bytes = &uncompressed[offset..offset + len];
+            offset += len;
+            let score_bytes: [u8; 4] = uncompressed[offset..offset + 4].try_into().unwrap();
+            offset += 4;
+            let score = f32::from_le_bytes(score_bytes) as f64;
+            let word = unsafe { String::from_utf8_unchecked(word_bytes.to_vec()) };
+            entries.push((word, score));
+        }
+
+        FastWordList::new(entries)
+    }
+
     pub fn find_matches_str(&self, query: &str) -> MatchWordListCore {
         let clean_query = query.to_uppercase();
         let query_bytes: Vec<u8> = clean_query
@@ -384,14 +529,33 @@ impl FastWordList {
     }
 
     pub fn score_filter(&self, threshold: f64) -> Self {
-        let entries: Vec<(String, f64)> = self
-            .words
-            .iter()
-            .zip(self.scores.iter())
-            .filter(|(_, &s)| s >= threshold)
-            .map(|(w, &s)| (w.clone(), s))
-            .collect();
-        Self::new(entries)
+        let mut partitions = vec![None; 33];
+        let mut words = Vec::new();
+        let mut scores = Vec::new();
+        let mut word_map = AHashMap::new();
+
+        for len in 1..33 {
+            if let Some(part) = &self.partitions[len] {
+                let cutoff = part.scores.partition_point(|&s| s >= threshold);
+                if cutoff > 0 {
+                    let sub_words = &part.words[..cutoff];
+                    let sub_scores = &part.scores[..cutoff];
+                    for (w, &s) in sub_words.iter().zip(sub_scores.iter()) {
+                        words.push(w.clone());
+                        scores.push(s);
+                        word_map.insert(w.clone(), s);
+                    }
+                    partitions[len] = Some(Arc::new(LengthPartition::new(len, sub_words, sub_scores)));
+                }
+            }
+        }
+
+        FastWordList {
+            words,
+            scores,
+            partitions,
+            word_map,
+        }
     }
 
     pub fn add(&self, other: &Self) -> Self {

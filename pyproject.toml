@@ -21,11 +21,38 @@ dynamic = ["version"]
 Source = "https://github.com/pmaher86/blacksquare"
 
 [project.optional-dependencies]
-dev = ["pre-commit", "pytest", "uv", "maturin"]
 pdf = ["pypdf", "weasyprint"]
+
+[dependency-groups]
+dev = [
+    "maturin>=1.0",
+    "pre-commit>=3.0",
+    "pytest>=8.0",
+    "ruff>=0.9.0",
+    "ty>=0.0.70",
+]
+lint = [
+    "ruff>=0.9.0",
+    "ty>=0.0.70",
+]
+test = [
+    "pytest>=8.0",
+]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.27.0",
+]
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
 module-name = "blacksquare._blacksquare_rs"
 python-source = "src"
-include = ["src/blacksquare/*.npz"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]

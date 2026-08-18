@@ -1,19 +1,24 @@
 from __future__ import annotations
 
-import copy
 import io
-import time
 from secrets import token_hex
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterable, Iterator, overload
 
-import networkx as nx
 import numpy as np
 import puz
 import rich.box
 from rich.console import Console
-from rich.live import Live
 from rich.table import Table
 
+from blacksquare._blacksquare_rs import (
+    Direction as RustDirection,
+)
+from blacksquare._blacksquare_rs import (
+    PyCrossword,
+)
+from blacksquare._blacksquare_rs import (
+    Symmetry as RustSymmetry,
+)
 from blacksquare.cell import Cell
 from blacksquare.html import CSS_TEMPLATE
 from blacksquare.symmetry import Symmetry
@@ -28,19 +33,20 @@ from blacksquare.utils import is_intlike
 from blacksquare.word import Word
 from blacksquare.word_list import DEFAULT_WORDLIST, WordList
 
+weasyprint: Any = None
+pypdf: Any = None
 try:
     import pypdf
     import weasyprint
 except ImportError:
-    weasyprint = None
-    pypdf = None
+    pass
 
 BLACK, EMPTY = SpecialCellValue.BLACK, SpecialCellValue.EMPTY
 ACROSS, DOWN = Direction.ACROSS, Direction.DOWN
 
 
 class Crossword:
-    """An object representing a crossword puzzle."""
+    """An object representing a crossword puzzle backed by an ultra-fast Rust engine."""
 
     def __init__(
         self,
@@ -50,109 +56,488 @@ class Crossword:
         symmetry: Symmetry | None = Symmetry.ROTATIONAL,
         word_list: WordList | None = None,
         display_size_px: int = 450,
+        _inner: PyCrossword | None = None,
     ):
-        """Creates a new Crossword object.
+        """Creates a new Crossword object."""
+        self._cached_cells: dict[CellIndex, Cell] = {}
+        self._cached_words: dict[WordIndex, Word] = {}
 
-        Args:
-            num_rows: The number of rows in the puzzle. Either this or a grid must be
-                provided. If grid is provided, shape will be inferred.
-            num_cols: The number of columns in the puzzle. If None, it will either be
-                equal to number of rows or inferred from grid.
-            grid: A 2-D array of letters from which the grid will be initialized. Can be
-                provided instead of num_rows/num_cols.
-            word_list: The word list to use by default when finding solutions. If None,
-                defaults to the default word list.
-            display_size_px: The size in pixels of the largest dimension of the puzzle
-                HTML rendering.
-        """
-        assert (num_rows is not None) ^ (
-            grid is not None
-        ), "Either specify shape or provide grid."
-        if num_rows:
-            self._num_rows = num_rows
-            if num_cols:
-                self._num_cols = num_cols
-            else:
-                self._num_cols = self._num_rows
+        if _inner is not None:
+            self._inner = _inner
+        else:
+            assert (num_rows is not None) ^ (grid is not None), (
+                "Either specify shape or provide grid."
+            )
 
-            shape = (self._num_rows, self._num_cols)
-            cells = [Cell(self, (i, j)) for i, j in np.ndindex(*shape)]
-            self._grid = np.array(cells, dtype=object).reshape(shape)
-        elif grid is not None:
-            assert np.all([len(r) == len(grid[0]) for r in grid])
-            self._num_rows = len(grid)
-            self._num_cols = len(grid[0])
-            shape = (self._num_rows, self._num_cols)
-            cells = [Cell(self, (i, j), grid[i][j]) for i, j in np.ndindex(*shape)]
-            self._grid = np.array(cells, dtype=object).reshape(shape)
+            rust_sym = self._to_rust_sym(symmetry)
 
-        if (
-            symmetry is not None
-            and symmetry.requires_square
-            and self._num_rows != self._num_cols
-        ):
-            raise ValueError(f"{symmetry.value} symmetry requires a square grid.")
+            if num_rows:
+                n_rows = num_rows
+                n_cols = num_cols if num_cols else n_rows
+                if symmetry and symmetry.requires_square and n_rows != n_cols:
+                    raise ValueError(
+                        f"{symmetry.value} symmetry requires a square grid."
+                    )
+                self._inner = PyCrossword(
+                    num_rows=n_rows,
+                    num_cols=n_cols,
+                    grid=None,
+                    symmetry=rust_sym,
+                    display_size_px=display_size_px,
+                )
+            elif grid is not None:
+                assert np.all([len(r) == len(grid[0]) for r in grid])
+                grid_list = []
+                for r in grid:
+                    row_strs = []
+                    for val in r:
+                        if isinstance(val, Cell):
+                            row_strs.append(val.str)
+                        elif isinstance(val, SpecialCellValue):
+                            row_strs.append(val.str)
+                        else:
+                            row_strs.append(str(val))
+                    grid_list.append(row_strs)
 
-        self._numbers = np.zeros_like(self._grid, dtype=int)
-        self._across = np.zeros_like(self._grid, dtype=int)
-        self._down = np.zeros_like(self._grid, dtype=int)
-        self._words = {}
-        self._dependency_graph: nx.classes.graph.Graph = None
-        self._parse_grid()
+                n_rows = len(grid_list)
+                n_cols = len(grid_list[0])
+                if symmetry and symmetry.requires_square and n_rows != n_cols:
+                    raise ValueError(
+                        f"{symmetry.value} symmetry requires a square grid."
+                    )
+
+                self._inner = PyCrossword(
+                    num_rows=None,
+                    num_cols=None,
+                    grid=grid_list,
+                    symmetry=rust_sym,
+                    display_size_px=display_size_px,
+                )
 
         self.word_list = word_list if word_list is not None else DEFAULT_WORDLIST
-        self.display_size_px = display_size_px
-        self.symmetry = symmetry
 
-    def __getitem__(self, key) -> str:
+    @staticmethod
+    def _to_rust_sym(sym: Symmetry | None) -> RustSymmetry | None:
+        if sym is None:
+            return None
+        mapping = {
+            Symmetry.ROTATIONAL: RustSymmetry.Rotational,
+            Symmetry.FULL: RustSymmetry.Full,
+            Symmetry.VERTICAL: RustSymmetry.Vertical,
+            Symmetry.HORIZONTAL: RustSymmetry.Horizontal,
+            Symmetry.BIAXIAL: RustSymmetry.Biaxial,
+            Symmetry.NE_DIAGONAL: RustSymmetry.NeDiagonal,
+            Symmetry.NW_DIAGONAL: RustSymmetry.NwDiagonal,
+        }
+        return mapping.get(sym)
+
+    @staticmethod
+    def _from_rust_sym(sym: RustSymmetry | None) -> Symmetry | None:
+        if sym is None:
+            return None
+        return Symmetry(sym.value)
+
+    @staticmethod
+    def _to_rust_dir(d: Direction) -> RustDirection:
+        return RustDirection.Across if d == Direction.ACROSS else RustDirection.Down
+
+    @staticmethod
+    def _from_rust_dir(d: RustDirection) -> Direction:
+        return Direction.ACROSS if d.value == "Across" else Direction.DOWN
+
+    @property
+    def num_rows(self) -> int:
+        """The number of rows in the puzzle"""
+        return self._inner.num_rows
+
+    @property
+    def num_cols(self) -> int:
+        """The number of columns in the puzzle"""
+        return self._inner.num_cols
+
+    @property
+    def symmetry(self) -> Symmetry | None:
+        return self._from_rust_sym(self._inner.symmetry)
+
+    @symmetry.setter
+    def symmetry(self, sym: Symmetry | None):
+        self._inner.symmetry = self._to_rust_sym(sym)
+
+    @property
+    def display_size_px(self) -> int:
+        return self._inner.display_size_px
+
+    @display_size_px.setter
+    def display_size_px(self, px: int):
+        self._inner.display_size_px = px
+
+    @property
+    def _grid(self) -> np.ndarray:
+        rows, cols = self.num_rows, self.num_cols
+        cells = [self[r, c] for r in range(rows) for c in range(cols)]
+        return np.array(cells, dtype=object).reshape((rows, cols))
+
+    @property
+    def _numbers(self) -> np.ndarray:
+        return np.array(self._inner.numbers_grid(), dtype=int)
+
+    @property
+    def _across(self) -> np.ndarray:
+        return np.array(self._inner.across_numbers_grid(), dtype=int)
+
+    @property
+    def _down(self) -> np.ndarray:
+        return np.array(self._inner.down_numbers_grid(), dtype=int)
+
+    @property
+    def _words(self) -> dict[WordIndex, Word]:
+        res = {}
+        for r_dir, num in self._inner.iter_word_indices():
+            py_dir = self._from_rust_dir(r_dir)
+            res[(py_dir, num)] = self[py_dir, num]
+        return res
+
+    @overload
+    def __getitem__(self, key: tuple[Direction, int]) -> Word: ...
+    @overload
+    def __getitem__(self, key: tuple[int, int]) -> Cell: ...
+    @overload
+    def __getitem__(self, key: WordIndex) -> Word: ...
+    @overload
+    def __getitem__(self, key: CellIndex) -> Cell: ...
+    def __getitem__(self, key: CellIndex | WordIndex | tuple[Any, Any]) -> Cell | Word:
         if isinstance(key, tuple) and len(key) == 2:
-            if isinstance(key[0], Direction) and is_intlike(key[1]):
-                if key in self._words:
-                    return self._words[key]
+            k0, k1 = key
+            if isinstance(k0, Direction) and is_intlike(k1):
+                num = int(k1)
+                word_idx = (k0, num)
+                r_dir = self._to_rust_dir(k0)
+                val = self._inner.get_word_value(r_dir, num)
+                if val is not None:
+                    if word_idx not in self._cached_words:
+                        self._cached_words[word_idx] = Word(self, k0, num)
+                    return self._cached_words[word_idx]
                 else:
                     raise IndexError
-            elif is_intlike(key[0]) and is_intlike(key[1]):
-                return self._grid[key]
+            elif not isinstance(k0, Direction) and is_intlike(k0) and is_intlike(k1):
+                r, c = int(k0), int(k1)
+                if r < 0:
+                    r += self.num_rows
+                if c < 0:
+                    c += self.num_cols
+                if 0 <= r < self.num_rows and 0 <= c < self.num_cols:
+                    if (r, c) not in self._cached_cells:
+                        self._cached_cells[(r, c)] = Cell(self, (r, c))
+                    return self._cached_cells[(r, c)]
+                else:
+                    raise IndexError
         raise IndexError
 
     def __setitem__(self, key, value):
         if isinstance(key, tuple) and len(key) == 2:
-            if isinstance(key[0], Direction) and is_intlike(key[1]):
-                self.set_word(key, value)
-            elif is_intlike(key[0]) and is_intlike(key[1]):
-                self.set_cell(key, value)
+            k0, k1 = key
+            if isinstance(k0, Direction) and is_intlike(k1):
+                self.set_word((k0, int(k1)), value)
+            elif not isinstance(k0, Direction) and is_intlike(k0) and is_intlike(k1):
+                self.set_cell((int(k0), int(k1)), value)
             else:
                 raise IndexError
         else:
             raise IndexError
 
+    def set_cell(self, index: CellIndex, value: CellValue) -> None:
+        """Sets a cell to a new value.
+
+        Args:
+            index: The index of the cell.
+            value: The new value of the cell.
+        """
+        if isinstance(value, (list, tuple, int, float, Crossword, Word)):
+            raise ValueError(f"Invalid cell value type: {type(value)}")
+
+        r, c = int(index[0]), int(index[1])
+        if r < 0:
+            r += self.num_rows
+        if c < 0:
+            c += self.num_cols
+        if not (0 <= r < self.num_rows and 0 <= c < self.num_cols):
+            raise IndexError(f"Cell index {(r, c)} out of bounds")
+
+        if isinstance(value, SpecialCellValue):
+            val_str = value.str
+        elif isinstance(value, Cell):
+            val_str = value.str
+        else:
+            val_str = str(value)
+            if (
+                len(val_str) != 1
+                and val_str
+                not in SpecialCellValue.BLACK.input_str_reprs
+                + SpecialCellValue.EMPTY.input_str_reprs
+            ):
+                raise ValueError(f"Invalid cell value length: {val_str}")
+
+        self._inner.set_cell_value(r, c, val_str)
+
+    def set_word(self, word_index: WordIndex, value: str) -> None:
+        """Sets a word to a new value.
+
+        Args:
+            word_index: The index of the word.
+            value: The new value of the word.
+        """
+        if not isinstance(value, str):
+            raise ValueError(f"Word value must be str, got {type(value)}")
+        r_dir = self._to_rust_dir(word_index[0])
+        num = int(word_index[1])
+        try:
+            self._inner.set_word_value(r_dir, num, str(value).upper())
+        except ValueError as e:
+            if "not found in grid" in str(e):
+                raise IndexError(str(e))
+            raise e
+
+    def get_cell_number(self, cell_index: CellIndex) -> int | None:
+        """Gets the crossword numeral at a given cell, if it exists.
+
+        Args:
+            cell_index: The index of the cell.
+
+        Returns:
+            The crossword number in that cell, if any.
+        """
+        r, c = int(cell_index[0]), int(cell_index[1])
+        if r < 0:
+            r += self.num_rows
+        if c < 0:
+            c += self.num_cols
+        return self._inner.get_cell_number(r, c)
+
+    def get_word_cells(self, word_index: WordIndex) -> list[Cell]:
+        """Gets the cells for a word index.
+
+        Args:
+            word_index: The word index.
+
+        Returns:
+            The list of Cells in the word.
+        """
+        r_dir = self._to_rust_dir(word_index[0])
+        num = int(word_index[1])
+        coords = self._inner.get_word_cell_indices(r_dir, num)
+        if coords is not None:
+            return [self[r, c] for r, c in coords]
+        return []
+
+    def get_indices(self, word_index: WordIndex) -> list[CellIndex]:
+        """Gets the list of cell indices for a given word.
+
+        Args:
+            word_index: The index of the desired word.
+
+        Returns:
+            A list of cell indices that belong to the word.
+        """
+        r_dir = self._to_rust_dir(word_index[0])
+        num = int(word_index[1])
+        coords = self._inner.get_word_cell_indices(r_dir, num)
+        if coords is not None:
+            return coords
+        raise IndexError(f"Word {word_index} not found")
+
+    def get_word_at_index(self, index: CellIndex, direction: Direction) -> Word | None:
+        """Gets the word that passes through a cell in a given direction.
+
+        Args:
+            index: The index of the cell.
+            direction: The direction of the word.
+
+        Returns:
+            The word passing through the index in the provided direction.
+        """
+        r, c = int(index[0]), int(index[1])
+        if r < 0:
+            r += self.num_rows
+        if c < 0:
+            c += self.num_cols
+        r_dir = self._to_rust_dir(direction)
+        res = self._inner.get_word_at_cell(r, c, r_dir)
+        if res is not None:
+            py_dir = self._from_rust_dir(res[0])
+            return self[py_dir, res[1]]
+        return None
+
+    def get_symmetric_cell_index(
+        self, index: CellIndex, force_list: bool = False
+    ) -> CellIndex | list[CellIndex] | None:
+        """Gets the index of a symmetric grid cell. Useful for enforcing symmetry.
+
+        Args:
+            index: The input cell index.
+            force_list: Whether to require that single indices are returned as a list.
+
+        Returns:
+            The index (or indices) of the cell symmetric to the input.
+        """
+        if not self.symmetry:
+            return [] if force_list else None
+        r, c = int(index[0]), int(index[1])
+        if r < 0:
+            r += self.num_rows
+        if c < 0:
+            c += self.num_cols
+        images = self._inner.get_symmetric_cell_indices(r, c)
+        if not images:
+            return [] if force_list else None
+        if self.symmetry.is_multi_image or force_list:
+            return images
+        else:
+            return images[0]
+
+    def get_symmetric_word_index(
+        self, word_index: WordIndex, force_list: bool = False
+    ) -> WordIndex | list[WordIndex] | None:
+        """Gets the index of a symmetric word. Useful for enforcing symmetry.
+
+        Args:
+            word_index: The input word index.
+            force_list: Whether to require that single indices are returned as a list.
+
+        Returns:
+            The index (or indices) of the word symmetric to the input.
+        """
+        if not self.symmetry:
+            return [] if force_list else None
+        r_dir = self._to_rust_dir(word_index[0])
+        images = self._inner.get_symmetric_word_indices(r_dir, int(word_index[1]))
+        py_images = [(self._from_rust_dir(d), num) for d, num in images]
+        if not py_images:
+            return [] if force_list else None
+        if self.symmetry.is_multi_image or force_list:
+            return py_images
+        else:
+            return py_images[0]
+
+    def get_disconnected_open_subgrids(self) -> list[list[WordIndex]]:
+        """Returns a list of open subgrids, as represented by a list of words.
+
+        Returns:
+            A list of open subgrids.
+        """
+        raw_subs = self._inner.get_disconnected_open_subgrids()
+        return [[(self._from_rust_dir(d), num) for d, num in sub] for sub in raw_subs]
+
+    def hashable_state(
+        self, word_indices: list[WordIndex]
+    ) -> tuple[tuple[WordIndex, str], ...]:
+        """Returns a list of tuple of (word index, current value) pairs in sorted order.
+
+        Args:
+            word_indices: The list of word indices of interest.
+
+        Returns:
+            A tuple of (word index, value) tuples
+        """
+        sorted_indices = sorted(word_indices)
+        return tuple((i, self[i].value) for i in sorted_indices)
+
+    def iterwords(
+        self, direction: Direction | None = None, only_open: bool = False
+    ) -> Iterator[Word]:
+        """Method for iterating over the words in the crossword.
+
+        Args:
+            direction: If provided, limits the iterator to only the given direction.
+            only_open: Whether to only return open words. Defaults to False.
+
+        Yields:
+            An iterator of Word objects.
+        """
+        r_dir = self._to_rust_dir(direction) if direction is not None else None
+        for r_d, num in self._inner.iter_word_indices(r_dir, only_open):
+            py_dir = self._from_rust_dir(r_d)
+            yield self[py_dir, num]
+
+    def itercells(self) -> Iterator[Cell]:
+        """Method for iterating over the cells in the crossword.
+
+        Yields:
+            An iterator of Cell objects. Ordered left to right, top to bottom.
+        """
+        for r in range(self.num_rows):
+            for c in range(self.num_cols):
+                yield self[r, c]
+
+    @property
+    def clues(self) -> dict[WordIndex, str]:
+        """A dict mapping word index to clue."""
+        return {
+            (self._from_rust_dir(d), num): clue
+            for (d, num), clue in self._inner.get_clues()
+        }
+
+    def copy(self) -> Crossword:
+        """Returns a copy of the current crossword.
+
+        Returns:
+            A copy of the current Crossword object.
+        """
+        return Crossword(
+            _inner=self._inner.copy(),
+            word_list=self.word_list,
+            display_size_px=self.display_size_px,
+        )
+
     def __deepcopy__(self, memo):
-        copied = copy.copy(self)
-        copied._grid = copy.deepcopy(self._grid)
-        for cell in copied._grid.ravel():
-            cell._parent = copied
-        copied._words = copy.deepcopy(self._words)
-        for word in copied._words.values():
-            word._parent = copied
-        copied._dependency_graph = copy.deepcopy(self._dependency_graph)
-        return copied
+        return self.copy()
 
     def __repr__(self):
-        longest_filled_word = max(
-            self.iterwords(), key=lambda w: len(w) if not w.is_open() else 0
-        )
+        words = list(self.iterwords())
+        if not words:
+            return 'Crossword("")'
+        longest_filled_word = max(words, key=lambda w: len(w) if not w.is_open() else 0)
         return f'Crossword("{longest_filled_word.value}")'
+
+    def fill(
+        self,
+        word_list: WordList | None = None,
+        timeout: float | None = 30.0,
+        temperature: float = 0.0,
+        score_filter: float | None = None,
+        allow_repeats: bool = False,
+    ) -> Crossword | None:
+        """Searches for a possible fill, and returns the result as a new Crossword
+        object. Backed by the native Rust backtracking solver.
+
+        Args:
+            word_list: An optional word list to use instead of the default.
+            timeout: The maximum time in seconds to search before returning.
+            temperature: A parameter to control randomness.
+            score_filter: A threshold to apply to the word list before filling.
+            allow_repeats: Whether to allow duplicate words in the grid.
+
+        Returns:
+            The filled Crossword, or None if no solution found / timed out.
+        """
+        wl = word_list if word_list is not None else self.word_list
+        filled_inner = self._inner.fill(
+            wl._inner,
+            timeout=timeout,
+            temperature=temperature,
+            score_filter=score_filter,
+            allow_repeats=allow_repeats,
+        )
+        if filled_inner is not None:
+            return Crossword(
+                _inner=filled_inner,
+                word_list=wl,
+                display_size_px=self.display_size_px,
+            )
+        return None
 
     @classmethod
     def from_puz(cls, filename: str) -> Crossword:
-        """Creates a Crossword object from a .puz file.
-
-        Args:
-            filename: The path of the input .puz file.
-
-        Returns:
-            A Crossword object.
-        """
+        """Creates a Crossword object from a .puz file."""
         puz_obj = puz.read(filename)
         grid = np.reshape(
             list(puz_obj.solution),
@@ -166,17 +551,13 @@ class Crossword:
         return xw
 
     def to_puz(self, filename: str) -> None:
-        """Outputs a .puz file from the Crossword object.
-
-        Args:
-            filename: The output path.
-        """
+        """Outputs a .puz file from the Crossword object."""
         puz_black, puz_empty = ".", "-"
         puz_obj = puz.Puzzle()
         puz_obj.height = self.num_rows
         puz_obj.width = self.num_cols
 
-        char_array = np.array([cell.str for cell in self._grid.ravel()])
+        char_array = np.array([cell.str for cell in self.itercells()])
         puz_obj.solution = (
             "".join(char_array)
             .replace(EMPTY.str, puz_empty)
@@ -190,9 +571,9 @@ class Crossword:
             list(self.iterwords()), key=lambda w: (w.number, w.direction)
         )
         puz_obj.clues = [w.clue for w in sorted_words]
-        puz_obj.cksum_global = puz_obj.global_cksum()
-        puz_obj.cksum_hdr = puz_obj.header_cksum()
-        puz_obj.cksum_magic = puz_obj.magic_cksum()
+        setattr(puz_obj, "cksum_global", puz_obj.global_cksum())
+        setattr(puz_obj, "cksum_hdr", puz_obj.header_cksum())
+        setattr(puz_obj, "cksum_magic", puz_obj.magic_cksum())
         puz_obj.save(filename)
 
     def to_pdf(
@@ -200,14 +581,7 @@ class Crossword:
         filename: str,
         header: list[str] | None = None,
     ) -> None:
-        """Outputs a .pdf file in NYT submission format from the Crossword object.
-
-        Args:
-            filename: The output path.
-            header: A list of strings to put on the output (e.g. name, address, etc.).
-                Each list element will be one line in the header.
-        """
-
+        """Outputs a .pdf file in NYT submission format from the Crossword object."""
         if weasyprint is None:
             raise ImportError(
                 "Can't import weasyprint, run pip install blacksquare[pdf] to install."
@@ -228,8 +602,6 @@ class Crossword:
                 break-inside: avoid-page !important;
             }}
             }}
-
-
             </style>
             </head>
             <body>
@@ -283,452 +655,8 @@ class Crossword:
         merger.write(str(filename))
         merger.close()
 
-    @property
-    def num_rows(self) -> int:
-        """The number of rows in the puzzle"""
-        return self._num_rows
-
-    @property
-    def num_cols(self) -> int:
-        """The number of columns in the puzzle"""
-        return self._num_cols
-
-    @property
-    def clues(self) -> dict[WordIndex, str]:
-        """A dict mapping word index to clue."""
-        return {index: w.clue for index, w in self._words.items()}
-
-    def get_symmetric_cell_index(
-        self, index: CellIndex, force_list: bool = False
-    ) -> CellIndex | list[CellIndex] | None:
-        """Gets the index of a symmetric grid cell. Useful for enforcing symmetry.
-
-        Args:
-            index: The input cell index.
-            force_list: Whether to require that single indices are returned as a list.
-
-        Returns:
-            The index (or indices) of the cell symmetric to the input.
-        """
-        if not self.symmetry:
-            return [] if force_list else None
-        elif self.symmetry.is_multi_image:
-            results = self.symmetry.apply(self._grid)
-            return list({r.grid[index].index for r in results})
-        else:
-            image = self.symmetry.apply(self._grid).grid[index].index
-            return [image] if force_list else image
-
-    def get_symmetric_word_index(
-        self, word_index: WordIndex, force_list: bool = False
-    ) -> WordIndex | list[WordIndex] | None:
-        """Gets the index of a symmetric word. Useful for enforcing symmetry.
-
-        Args:
-            index: The input word index.
-            force_list: Whether to require that single indices are returned as a list.
-
-        Returns:
-            The index (or indices) of the word symmetric to the input.
-        """
-        dir = word_index[0]
-        mask = self._get_word_mask(word_index)
-        if not self.symmetry:
-            return [] if force_list else None
-        elif self.symmetry.is_multi_image:
-            results = self.symmetry.apply(self._grid)
-            new_indices = set()
-            for result in results:
-                new_dir = dir.opposite if result.word_direction_rotated else dir
-                new_indices.add(result.grid[mask][0].get_parent_word(new_dir).index)
-            return list(new_indices)
-        else:
-            result = self.symmetry.apply(self._grid)
-            new_dir = dir.opposite if result.word_direction_rotated else dir
-            image = result.grid[mask][0].get_parent_word(new_dir).index
-            return [image] if force_list else image
-
-    def _parse_grid(self) -> None:
-        """Updates all indices to reflect the state of the _grid property."""
-        old_across, old_down = self._across, self._down
-        padded = np.pad(self._grid, 1, constant_values=Cell(None, (None, None), BLACK))
-        shifted_down, shifted_right = padded[:-2, 1:-1], padded[1:-1, :-2]
-        shifted_up, shifted_left = padded[2:, 1:-1], padded[1:-1, 2:]
-        is_open = ~np.equal(self._grid, BLACK)
-        starts_down, starts_across = (
-            np.equal(x, BLACK) for x in (shifted_down, shifted_right)
-        )
-        too_short_down = np.equal(shifted_up, BLACK) & np.equal(shifted_down, BLACK)
-        too_short_across = np.equal(shifted_left, BLACK) & np.equal(
-            shifted_right, BLACK
-        )
-
-        starts_down = starts_down & ~too_short_down
-        starts_across = starts_across & ~too_short_across
-        needs_num = is_open & (starts_down | starts_across)
-        self._numbers = np.reshape(np.cumsum(needs_num), self._grid.shape) * needs_num
-        self._across = np.maximum.accumulate(starts_across * self._numbers, axis=1) * (
-            is_open & ~too_short_across
-        )
-        self._down = np.maximum.accumulate(starts_down * self._numbers) * (
-            is_open & ~too_short_down
-        )
-
-        def get_cells_to_nums(ordered_nums: np.ndarray) -> dict[tuple[int, ...], int]:
-            flattened = ordered_nums.ravel()
-            word_divs = np.flatnonzero(np.diff(flattened, prepend=-1))
-            nums = flattened[word_divs]
-            groups = np.split(np.arange(len(flattened)), word_divs[1:])
-            return dict(zip(map(tuple, groups), nums))
-
-        def get_new_to_old_map(old: np.ndarray, new: np.ndarray) -> dict[int, int]:
-            old_cells_nums = get_cells_to_nums(old)
-            new_cells_nums = get_cells_to_nums(new)
-            new_to_old = {}
-            for cells in set(old_cells_nums.keys()).intersection(new_cells_nums.keys()):
-                if old_cells_nums[cells] and new_cells_nums[cells]:
-                    new_to_old[new_cells_nums[cells]] = old_cells_nums[cells]
-            return new_to_old
-
-        across_new_old_map = get_new_to_old_map(old_across, self._across)
-        down_new_old_map = get_new_to_old_map(old_down.T, self._down.T)
-
-        new_words = {}
-        for across_num in set(self._across.ravel()) - {0}:
-            old_word = self._words.get((ACROSS, across_new_old_map.get(across_num)))
-            new_words[(ACROSS, across_num)] = Word(
-                self,
-                ACROSS,
-                across_num,
-                clue=old_word.clue if old_word is not None else "",
-            )
-        for down_num in set(self._down.ravel()) - {0}:
-            old_word = self._words.get((DOWN, down_new_old_map.get(down_num)))
-            new_words[(DOWN, down_num)] = Word(
-                self, DOWN, down_num, clue=old_word.clue if old_word is not None else ""
-            )
-        self._words = new_words
-        edge_list = {
-            w.index: [c.index for c in w.crosses if c and c.is_open()]
-            for w in self.iterwords(only_open=True)
-        }
-        self._dependency_graph = nx.from_dict_of_lists(edge_list)
-
-    def _get_direction_numbers(self, direction: Direction) -> np.ndarray:
-        """An array indicating the word number for each cell for a given direction.
-
-        Args:
-            direction: The desired direction.
-
-        Returns:
-            The grid of word numbers for each cell.
-        """
-        if direction == Direction.ACROSS:
-            return self._across
-        elif direction == Direction.DOWN:
-            return self._down
-
-    def _get_word_mask(self, word_index: WordIndex) -> np.ndarray:
-        """A boolean mask that indicates which grid cells belong to a word.
-
-        Args:
-            word_index: The index of the desired word.
-
-        Returns:
-            The grid indicating which cells are in the input word.
-        """
-        word = self[word_index]
-        return self._get_direction_numbers(word.direction) == word.number
-
-    def get_word_cells(self, word_index: WordIndex) -> list[Cell]:
-        """Gets the cells for a word index.
-
-        Args:
-            word_index: The word index.
-
-        Returns:
-            The list of Cells in the word.
-        """
-        return list(self._grid[self._get_word_mask(word_index)])
-
-    def get_cell_number(self, cell_index: CellIndex) -> int | None:
-        """Gets the crossword numeral at a given cell, if it exists.
-
-        Args:
-            cell_index: The index of the cell.
-
-        Returns:
-            The crossword number in that cell, if any.
-        """
-        number = self._numbers[cell_index]
-        if number:
-            return number
-
-    def iterwords(
-        self, direction: Direction | None = None, only_open: bool = False
-    ) -> Iterator[Word]:
-        """Method for iterating over the words in the crossword.
-
-        Args:
-            direction: If provided, limits the iterator to only the given direction.
-            only_open: Whether to only return open words. Defaults to False.
-
-        Yields:
-            An iterator of Word objects. Ordered in standard crossword fashion
-                (ascending numbers, across then down).
-        """
-        for word_index in sorted(self._words.keys()):
-            if direction is None or direction == self[word_index].direction:
-                if not only_open or self._words[word_index].is_open():
-                    yield (self._words[word_index])
-
-    def itercells(self) -> Iterator[Cell]:
-        """Method for iterating over the cells in the crossword.
-
-        Yields:
-            An iterator of Cell objects. Ordered left to right, top to bottom.
-        """
-        for cell in self._grid.ravel():
-            yield cell
-
-    def get_indices(self, word_index: WordIndex) -> list[CellIndex]:
-        """Gets the list of cell indices for a given word.
-
-        Args:
-            word_index: The index of the desired word.
-
-        Returns:
-            A list of cell indices that belong to the word.
-        """
-        return [
-            (int(x[0]), int(x[1]))
-            for x in np.argwhere(self._get_word_mask(word_index)).tolist()
-        ]
-
-    def get_word_at_index(self, index: CellIndex, direction: Direction) -> Word | None:
-        """Gets the word that passes through a cell in a given direction.
-
-        Args:
-            index: The index of the cell.
-            direction: The direction of the word.
-
-        Returns:
-            The word passing through the index in the provided direction. If the index
-            corresponds to a black square, or there is no word in that direction (an
-            unchecked light) this method returns None.
-        """
-        if self[index] != BLACK:
-            number = self._get_direction_numbers(direction)[index]
-            try:
-                return self[direction, number]
-            except IndexError:
-                return None
-
-    def set_word(self, word_index: WordIndex, value: str) -> None:
-        """Sets a word to a new value.
-
-        Args:
-            word_index: The index of the word.
-            value: The new value of the word.
-        """
-        if not isinstance(value, str) or len(self[word_index]) != len(value):
-            raise ValueError
-        direction = word_index[0]
-        word_mask = self._get_word_mask(word_index)
-        cells = self._grid[word_mask]
-        cross_indices = [
-            (direction.opposite, n) if n else None
-            for n in self._get_direction_numbers(direction.opposite)[word_mask]
-        ]
-        for i in range(len(value)):
-            cells[i].value = value[i]
-            cross_index = cross_indices[i]
-            edge = (word_index, cross_index) if cross_index else None
-            if cells[i].value == EMPTY and edge:
-                self._dependency_graph.add_edge(*edge)
-            elif edge and edge in self._dependency_graph.edges:
-                self._dependency_graph.remove_edge(*edge)
-        for wi in [word_index] + cross_indices:
-            if wi:
-                word = self[wi]
-                if not word.is_open() and wi in self._dependency_graph.nodes:
-                    self._dependency_graph.remove_node(wi)
-
-    def set_cell(self, index: CellIndex, value: CellValue) -> None:
-        """Sets a cell to a new value.
-
-        Args:
-            index: The index of the cell.
-            value: The new value of the cell.
-        """
-        cell: Cell = self._grid[index]
-        if value == BLACK:
-            cell.value = BLACK
-            images = self.get_symmetric_cell_index(index, force_list=True)
-            for image in images:
-                self._grid[image].value = BLACK
-            self._parse_grid()
-        elif cell == BLACK:
-            cell.value = value
-            images = self.get_symmetric_cell_index(index, force_list=True)
-            for image in images:
-                if self._grid[image].value == BLACK:
-                    self._grid[image].value = EMPTY
-            self._parse_grid()
-        else:
-            cell.value = value
-            words = (cell.get_parent_word(ACROSS), cell.get_parent_word(DOWN))
-            if all([w is not None for w in words]):
-                edge = tuple(w.index for w in words)
-                if cell.value == EMPTY:
-                    self._dependency_graph.add_edge(*edge)
-                elif edge in self._dependency_graph.edges:
-                    self._dependency_graph.remove_edge(*edge)
-            for word in words:
-                if (
-                    word is not None
-                    and not word.is_open()
-                    and word.index in self._dependency_graph.nodes
-                ):
-                    self._dependency_graph.remove_node(word.index)
-
-    def copy(self) -> Crossword:
-        """Returns a copy of the current crossword, with all linked objects (Words and
-        Cells) properly associated to the new object. Modifying the returned object will
-        not affect the original object.
-
-        Returns:
-            A copy of the current Crossword object.
-        """
-        return copy.deepcopy(self)
-
-    def get_disconnected_open_subgrids(self) -> list[list[WordIndex]]:
-        """Returns a list of open subgrids, as represented by a list of words. An open
-        subgrid is a set of words whose fill can in principle depend on each other. For
-        instance, if the only the northwest and southeast corners are a puzzle are open,
-        such that they can be filled completely independently, the words in those two
-        areas will be returned as separate subgrids.
-
-        Returns:
-            A list of open subgrids.
-        """
-
-        return [
-            sorted(list(cc)) for cc in nx.connected_components(self._dependency_graph)
-        ]
-
-    def hashable_state(
-        self, word_indices: list[WordIndex]
-    ) -> tuple[tuple[WordIndex, str], ...]:
-        """Returns a list of tuple of (word index, current value) pairs in sorted order.
-        This provides a hashable object describing the state of the grid which can be
-        compared between different Crossword objects.
-
-        Args:
-            word_indices: The list of word indices of interest.
-
-        Returns:
-            A tuple of (word index, value) tuples
-        """
-        sorted_indices = sorted(word_indices)
-        return tuple((i, self[i].value) for i in sorted_indices)
-
-    def fill(
-        self,
-        word_list: WordList | None = None,
-        timeout: float | None = 30.0,
-        temperature: float = 0.0,
-        score_filter: float | None = None,
-        allow_repeats: bool = False,
-    ) -> Crossword | None:
-        """Searches for a possible fill, and returns the result as a new Crossword
-        object. Uses a modified depth-first-search algorithm.
-
-        Args:
-            word_list: An optional word list to use instead of the default for the
-                crossword.
-            timeout: The maximum time in seconds to search before returning. Defaults to
-                30. If None, will search until completion.
-            temperature: A parameter to control randomness. Defaults to 0 (no
-                randomness). Reasonable values are around 1.
-            score_filter: A threshold to apply to the word list before filling.
-            allow_repeats: Whether to allow words that already appear in the grid.
-                Defaults to false.
-
-        Returns:
-            The filled Crossword. Returns None if the search is
-                exhausted or the timeout is hit.
-        """
-        dead_end_states = set()
-        subgraphs = self.get_disconnected_open_subgrids()
-        start_time = time.time()
-        word_list = word_list if word_list is not None else self.word_list
-        if score_filter:
-            word_list = word_list.score_filter(score_filter)
-        xw = self.copy()
-
-        def recurse_subgraph_fill(
-            active_subgraph: list[WordIndex], display_context: Live
-        ) -> bool:
-            if xw.hashable_state(active_subgraph) in dead_end_states:
-                return False
-            num_matches = np.array(
-                [len(word_list.find_matches(xw[i])) for i in active_subgraph]
-            )
-            noise = np.abs(np.random.normal(scale=num_matches)) * temperature
-            word_to_match: Word = xw[active_subgraph[np.argmin(num_matches + noise)]]
-            matches = word_to_match.find_matches(word_list, allow_repeats=allow_repeats)
-            if not matches:
-                dead_end_states.add(xw.hashable_state(active_subgraph))
-                return False
-            else:
-                noisy_matches = matches.rescore(
-                    lambda _, s: s * np.random.lognormal(0.0, 0.1 * temperature)
-                )
-                old_value = word_to_match.value
-                # temp fill for subgraph calculation
-                xw[word_to_match.index] = noisy_matches.words[0]
-                display_context.update(xw._text_grid())
-                new_subgraphs = [
-                    s
-                    for s in xw.get_disconnected_open_subgrids()
-                    if set(s).issubset(set(active_subgraph))
-                ]
-                for match in noisy_matches.words:
-                    if timeout and time.time() > start_time + timeout:
-                        xw[word_to_match.index] = old_value
-                        return False
-                    xw[word_to_match.index] = match
-                    display_context.update(xw._text_grid())
-
-                    for new_subgraph in sorted(new_subgraphs, key=len):
-                        if not recurse_subgraph_fill(new_subgraph, display_context):
-                            break
-                    else:
-                        return True
-                xw[word_to_match.index] = old_value
-                dead_end_states.add(xw.hashable_state(active_subgraph))
-                return False
-
-        with Live(self._text_grid(), refresh_per_second=4, transient=True) as live:
-            for subgraph in sorted(subgraphs, key=len):
-                if recurse_subgraph_fill(subgraph, live):
-                    live.update(xw._text_grid(), refresh=True)
-                else:
-                    return
-            else:
-                return xw
-
     def _text_grid(self, numbers: bool = False) -> Table:
-        """Returns a rich Table that displays the crossword.
-
-        Args:
-            numbers: If True, prints the numbers in the grid rather
-                than the letters. Defaults to False.
-
-        Returns:
-            A Table object containing the crossword.
-        """
+        """Returns a rich Table that displays the crossword."""
         table = Table(
             box=rich.box.SQUARE,
             show_header=False,
@@ -738,9 +666,10 @@ class Crossword:
         )
         for c in range(self.num_cols):
             table.add_column(justify="left", width=3)
-        for row in self._grid:
+        for r in range(self.num_rows):
             strings = []
-            for cell in row:
+            for c in range(self.num_cols):
+                cell = self[r, c]
                 if cell == SpecialCellValue.BLACK:
                     strings.append(cell.str * 3)
                 else:
@@ -754,29 +683,14 @@ class Crossword:
 
         return table
 
-    def pprint(self, numbers: bool = False) -> str:
-        """Prints a formatted string representation of the crossword fill.
-
-        Args:
-            numbers (bool): If True, prints the numbers in the grid rather
-                than the letters. Defaults to False.
-        """
+    def pprint(self, numbers: bool = False) -> None:
+        """Prints a formatted string representation of the crossword fill."""
         console = Console()
         console.print(self._text_grid(numbers))
 
     def _repr_mimebundle_(
         self, include: Iterable[str], exclude: Iterable[str], **kwargs: Any
     ) -> dict[str, str]:
-        """A display method that handles different IPython environments.
-
-        Args:
-            include: MIME types to include.
-            exclude: MIME types to exclude.
-
-        Returns:
-            A dict containing the outputs.
-        """
-
         html = self._grid_html()
         text = self._text_grid()._repr_mimebundle_([], [])["text/plain"]
         data = {"text/plain": text, "text/html": html}
@@ -787,23 +701,13 @@ class Crossword:
         return data
 
     def _grid_html(self, size_px: int | None = None) -> str:
-        """Returns an HTML rendering of the puzzle.
-
-        Args:
-            size_px: The size of the largest dimension in pixels. If None
-                provided, defaults to the display_size_px property.
-
-        Returns:
-            HTML to display the puzzle.
-        """
+        """Returns an HTML rendering of the puzzle."""
         size_px = size_px or self.display_size_px
-        # Random suffix is a hack to ensure correct display in Jupyter settings
         suffix = token_hex(4)
         cells = []
         for c in self.itercells():
-            c.number
             cell_number_span = f'<span class="cell-number">{c.number or ""}</span>'
-            letter_span = f'<span class="letter">{c.str if c!=BLACK else ""}</span>'
+            letter_span = f'<span class="letter">{c.str if c != BLACK else ""}</span>'
             circle_span = '<span class="circle"></span>'
             if c == BLACK:
                 extra_class = " black"
