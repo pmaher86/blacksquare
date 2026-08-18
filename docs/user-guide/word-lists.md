@@ -33,11 +33,13 @@ You can construct a `WordList` from Python lists, dictionaries, or text files:
 
     ```python
     # Scores are scaled automatically between 0.0 and 1.0
-    wl = WordList({
-        "HELLO": 100,
-        "WORLD": 80,
-        "CROSSWORD": 95,
-    })
+    wl = WordList(
+        {
+            "HELLO": 100,
+            "WORLD": 80,
+            "CROSSWORD": 95,
+        }
+    )
     ```
 
 === "From Text File (`word;score`)"

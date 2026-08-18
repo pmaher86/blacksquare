@@ -82,7 +82,7 @@ nav:
   - User Guide:
       - Grids & Cells: user-guide/grid-and-cells.md
       - Words & Crosses: user-guide/words-and-crosses.md
-      - Filling: user-guide/filling.md
+      - Solving & Auto-Fill: user-guide/filling-and-solving.md
       - Word Lists & Scoring: user-guide/word-lists.md
       - Export & Publishing: user-guide/import-export.md
   - API Reference:

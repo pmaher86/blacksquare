@@ -62,5 +62,5 @@ In Jupyter notebooks, simply typing `xw` on the last line renders a styled HTML 
 ## Next Steps
 
 - Explore [Grids & Cells](user-guide/grid-and-cells.md) for coordinate systems and cell styling.
-- Explore [Auto-Fill](user-guide/filling.md) for constraint-based grid filling.
+- Explore [Solving & Auto-Fill](user-guide/filling-and-solving.md) for constraint-based grid solving.
 - Explore [Export & Publishing](user-guide/import-export.md) to generate `.puz` and `.pdf` files.

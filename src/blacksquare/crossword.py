@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import io
 from secrets import token_hex
 from typing import Any, Iterable, Iterator, overload
@@ -36,8 +37,8 @@ from blacksquare.word_list import DEFAULT_WORDLIST, WordList
 weasyprint: Any = None
 pypdf: Any = None
 try:
-    import pypdf
-    import weasyprint
+    pypdf = importlib.import_module("pypdf")
+    weasyprint = importlib.import_module("weasyprint")
 except ImportError:
     pass
 

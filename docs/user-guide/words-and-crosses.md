@@ -14,8 +14,8 @@ xw[ACROSS, 1] = "HELLO"
 
 # Access the Word object
 w = xw[ACROSS, 1]
-print(w.value)   # 'HELLO'
-print(len(w))    # 5
+print(w.value)  # 'HELLO'
+print(len(w))  # 5
 ```
 
 ## Traversing Crosses
@@ -26,7 +26,9 @@ Every word slot knows which crossing words intersect each of its letters:
 w = xw[ACROSS, 1]
 for i, cross in enumerate(w.crosses):
     if cross is not None:
-        print(f"Letter {i} ('{w.value[i]}') crosses {cross.direction.value} {cross.number}")
+        print(
+            f"Letter {i} ('{w.value[i]}') crosses {cross.direction.value} {cross.number}"
+        )
 ```
 
 ## Assigning Clues

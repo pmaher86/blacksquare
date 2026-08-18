@@ -22,9 +22,9 @@ print(cell.value)  # SpecialCellValue.EMPTY
 A cell can hold an uppercase letter or a special value (`BLACK`, `EMPTY`):
 
 ```python
-xw[0, 0] = 'C'
-xw[0, 1] = 'A'
-xw[0, 2] = 'T'
+xw[0, 0] = "C"
+xw[0, 1] = "A"
+xw[0, 2] = "T"
 ```
 
 ### Visual Highlights (Shading & Circles)
