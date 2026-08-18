@@ -1,15 +1,26 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+        args: [--unsafe]
       - id: check-added-large-files
-        exclude: src/blacksquare/spreadthewordlist.npz
+        args: ["--maxkb=3000"]
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.8
+    rev: v0.9.6
     hooks:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: ty-check
+        name: ty type check
+        entry: uv run ty check src
+        language: system
+        types: [python]
+        pass_filenames: false

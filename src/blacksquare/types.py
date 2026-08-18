@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from enum import Enum
 
 
@@ -32,18 +33,20 @@ class SpecialCellValue(Enum):
     EMPTY = "Empty"
 
     @property
-    def input_str_reprs(self) -> list[str]:
+    def input_str_reprs(self) -> list[builtins.str]:
         if self == SpecialCellValue.BLACK:
             return [".", "#"]
         elif self == SpecialCellValue.EMPTY:
             return [" ", "-", "?", "_"]
+        return []
 
     @property
-    def str(self) -> str:
+    def str(self) -> builtins.str:
         if self == SpecialCellValue.BLACK:
             return "█"
         elif self == SpecialCellValue.EMPTY:
             return " "
+        return ""
 
     def __repr__(self):
         return f"<{self.value}>"
@@ -54,4 +57,4 @@ DOWN = Direction.DOWN
 
 WordIndex = tuple[Direction, int]
 CellIndex = tuple[int, int]
-CellValue = str | SpecialCellValue
+CellValue = builtins.str | SpecialCellValue

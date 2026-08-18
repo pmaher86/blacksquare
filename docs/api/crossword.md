@@ -1,0 +1,3 @@
+# Crossword API
+
+::: blacksquare.Crossword
