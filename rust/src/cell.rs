@@ -5,7 +5,7 @@ pub enum CellValue {
     Empty,
     Black,
     Letter(char),
-    Rebus(String),
+    Rebus { across: String, down: String },
     Schrodinger(Vec<String>),
 }
 
@@ -24,14 +24,29 @@ impl CellValue {
         if chars.len() == 1 {
             Ok(CellValue::Letter(chars[0]))
         } else if upper.contains('/') {
-            let parts: Vec<String> = upper.split('/').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
-            if parts.len() > 1 {
+            let parts: Vec<String> = upper
+                .split('/')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            if parts.len() == 2 {
+                Ok(CellValue::Rebus {
+                    across: parts[0].clone(),
+                    down: parts[1].clone(),
+                })
+            } else if parts.len() > 2 {
                 Ok(CellValue::Schrodinger(parts))
             } else {
-                Ok(CellValue::Rebus(upper))
+                Ok(CellValue::Rebus {
+                    across: upper.clone(),
+                    down: upper,
+                })
             }
         } else {
-            Ok(CellValue::Rebus(upper))
+            Ok(CellValue::Rebus {
+                across: upper.clone(),
+                down: upper,
+            })
         }
     }
 
@@ -40,7 +55,13 @@ impl CellValue {
             CellValue::Empty => " ".to_string(),
             CellValue::Black => "█".to_string(),
             CellValue::Letter(c) => c.to_string(),
-            CellValue::Rebus(s) => s.clone(),
+            CellValue::Rebus { across, down } => {
+                if across == down {
+                    across.clone()
+                } else {
+                    format!("{}/{}", across, down)
+                }
+            }
             CellValue::Schrodinger(parts) => parts.join("/"),
         }
     }
@@ -50,8 +71,10 @@ impl CellValue {
             CellValue::Empty => '?',
             CellValue::Black => '#',
             CellValue::Letter(c) => *c,
-            CellValue::Rebus(s) => s.chars().next().unwrap_or('?'),
-            CellValue::Schrodinger(parts) => parts.first().and_then(|s| s.chars().next()).unwrap_or('?'),
+            CellValue::Rebus { across, .. } => across.chars().next().unwrap_or('?'),
+            CellValue::Schrodinger(parts) => {
+                parts.first().and_then(|s| s.chars().next()).unwrap_or('?')
+            }
         }
     }
 

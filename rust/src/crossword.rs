@@ -100,6 +100,26 @@ impl CrosswordCore {
         }
     }
 
+    pub fn set_cell_rebus(&mut self, row: usize, col: usize, across: String, down: String) {
+        let is_currently_black = self.grid.get_cell(row, col).is_black();
+        let value = CellValue::Rebus { across, down };
+        if is_currently_black {
+            self.grid.get_cell_mut(row, col).value = value;
+            if let Some(sym) = self.symmetry {
+                let images = sym.apply_cell(row, col, self.grid.num_rows, self.grid.num_cols);
+                for img in images {
+                    let (r, c) = img.cell_index;
+                    if self.grid.get_cell(r, c).is_black() {
+                        self.grid.get_cell_mut(r, c).value = CellValue::Empty;
+                    }
+                }
+            }
+            self.reparse_and_preserve_clues();
+        } else {
+            self.grid.get_cell_mut(row, col).value = value;
+        }
+    }
+
     pub fn set_word(&mut self, word_index: WordIndex, value: &str) -> Result<(), String> {
         let slot = self
             .grid

@@ -37,7 +37,6 @@ dependencies = [
     { name = "networkx" },
     { name = "numpy" },
     { name = "pandas" },
-    { name = "puzpy" },
     { name = "rich" },
 ]
 
@@ -73,7 +72,6 @@ requires-dist = [
     { name = "networkx" },
     { name = "numpy" },
     { name = "pandas" },
-    { name = "puzpy" },
     { name = "pypdf", marker = "extra == 'pdf'" },
     { name = "rich" },
     { name = "weasyprint", marker = "extra == 'pdf'" },
@@ -1223,15 +1221,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/74/89/1f3e8e1fc3e97de0fa963495832f581f025f29471602a309e48808244292/pre_commit-4.6.2.tar.gz", hash = "sha256:8f5d7bfb021ecdbcd9d49d89847082dd24172ccde534390081a679ad046e2441", size = 198670, upload-time = "2026-08-10T22:07:18.421Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/45/e2/bbb7129c9e7999a6b8ee9cca3b66486c25c423ab5a75f34071798b74ce94/pre_commit-4.6.2-py2.py3-none-any.whl", hash = "sha256:e2dde9a75d3bce11bd3831c26d134df00a2803c1d818be6a0383c3dcda25dc4e", size = 226202, upload-time = "2026-08-10T22:07:16.942Z" },
-]
-
-[[package]]
-name = "puzpy"
-version = "0.6.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/45/9f/51f3bb801f8d0146ed6687861bf9323e59cf872b881ae5282c966f6fcd0e/puzpy-0.6.1.tar.gz", hash = "sha256:7ec6b7e51f1a3a09af6ccd8f1b54c9e5cd95da347e340b88bac933c4d9fa7f63", size = 20011, upload-time = "2026-04-25T20:49:38.38Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/06/5e/1fb75637f9889a948eca4012ddeff404c5962ab657d97aa18aea460e35a8/puzpy-0.6.1-py3-none-any.whl", hash = "sha256:445c14d881dc37a723eb3527dd9baa649ec309a87fddc874e94ddaedbe483ec1", size = 16185, upload-time = "2026-04-25T20:49:36.706Z" },
 ]
 
 [[package]]

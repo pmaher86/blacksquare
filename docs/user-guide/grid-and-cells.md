@@ -17,15 +17,41 @@ cell = xw[0, 0]
 print(cell.value)  # SpecialCellValue.EMPTY
 ```
 
+---
+
 ## Cell Values and Properties
 
-A cell can hold an uppercase letter or a special value (`BLACK`, `EMPTY`):
+A cell can hold an uppercase letter, a special value (`BLACK`, `EMPTY`), or a `Rebus`:
 
 ```python
 xw[0, 0] = "C"
 xw[0, 1] = "A"
 xw[0, 2] = "T"
 ```
+
+### Rebus Cells
+
+Rebus cells hold multi-letter strings or symbols. You can declare them with identical or different across and down interpretations:
+
+=== "Symmetric Rebus"
+
+    ```python
+    from blacksquare import Rebus
+
+    # The same value is used for both across and down directions
+    xw[1, 1] = Rebus("FOO")
+    ```
+
+=== "Directional (Asymmetric) Rebus"
+
+    ```python
+    from blacksquare import Rebus
+
+    # Different text values for across and down words
+    xw[1, 1] = Rebus(across="HEART", down="LOVE")
+    ```
+
+---
 
 ### Visual Highlights (Shading & Circles)
 
@@ -39,6 +65,8 @@ xw[1, 1].circled = True
 xw[2, 2].shaded = True
 ```
 
+---
+
 ## Symmetry Modes
 
 `blacksquare` supports multiple grid symmetry options from the `Symmetry` enum:
@@ -51,5 +79,7 @@ xw[2, 2].shaded = True
 - `Symmetry.NE_DIAGONAL` / `Symmetry.NW_DIAGONAL` (Diagonal reflection)
 
 ```python
+from blacksquare import Symmetry
+
 xw = Crossword(15, symmetry=Symmetry.VERTICAL)
 ```

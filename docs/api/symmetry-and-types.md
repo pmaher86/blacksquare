@@ -5,3 +5,5 @@
 ::: blacksquare.types.Direction
 
 ::: blacksquare.types.SpecialCellValue
+
+::: blacksquare.types.Rebus

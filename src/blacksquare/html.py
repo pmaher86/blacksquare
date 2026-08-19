@@ -34,6 +34,16 @@ CSS_TEMPLATE = """
     color: black;
 }}
 
+.crossword-cell{suffix} .letter.rebus {{
+    bottom: {rebus_bottom}px;
+    top: auto;
+    left: 50%;
+    transform: translate(-50%, 50%);
+    text-align: center;
+    white-space: nowrap;
+    line-height: 1;
+}}
+
 .black {{
     background-color: black;
     outline: 1px solid gray;

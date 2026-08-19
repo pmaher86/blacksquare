@@ -402,6 +402,24 @@ impl PyCrossword {
         Ok(self.core.grid.get_cell(row, col).value.to_str())
     }
 
+    pub fn get_cell_rebus(&self, row: usize, col: usize) -> Option<(String, String)> {
+        if row >= self.core.grid.num_rows || col >= self.core.grid.num_cols {
+            return None;
+        }
+        match &self.core.grid.get_cell(row, col).value {
+            CellValue::Rebus { across, down } => Some((across.clone(), down.clone())),
+            _ => None,
+        }
+    }
+
+    pub fn set_cell_rebus(&mut self, row: usize, col: usize, across: &str, down: &str) -> PyResult<()> {
+        if row >= self.core.grid.num_rows || col >= self.core.grid.num_cols {
+            return Err(pyo3::exceptions::PyIndexError::new_err("Cell index out of range"));
+        }
+        self.core.set_cell_rebus(row, col, across.to_uppercase(), down.to_uppercase());
+        Ok(())
+    }
+
     pub fn set_cell_value(&mut self, row: usize, col: usize, val_str: &str) -> PyResult<()> {
         if row >= self.core.grid.num_rows || col >= self.core.grid.num_cols {
             return Err(pyo3::exceptions::PyIndexError::new_err("Cell index out of range"));
