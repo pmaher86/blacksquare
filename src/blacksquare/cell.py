@@ -4,7 +4,13 @@ import builtins
 import copy
 from typing import TYPE_CHECKING
 
-from blacksquare.types import CellIndex, CellValue, Direction, SpecialCellValue
+from blacksquare.types import (
+    CellIndex,
+    CellValue,
+    Direction,
+    Rebus,
+    SpecialCellValue,
+)
 
 if TYPE_CHECKING:
     from blacksquare.crossword import Crossword
@@ -51,6 +57,11 @@ class Cell:
     @property
     def value(self) -> CellValue:
         if self._parent is not None and hasattr(self._parent, "_inner"):
+            rebus_data = self._parent._inner.get_cell_rebus(
+                self._index[0], self._index[1]
+            )
+            if rebus_data is not None:
+                return Rebus(across=rebus_data[0], down=rebus_data[1])
             val_str = self._parent._inner.get_cell_value(self._index[0], self._index[1])
             if val_str == " ":
                 return SpecialCellValue.EMPTY
@@ -119,7 +130,9 @@ class Cell:
     @property
     def str(self) -> builtins.str:
         val = self.value
-        if isinstance(val, str):
+        if isinstance(val, Rebus):
+            return str(val)
+        elif isinstance(val, str):
             return val
         elif isinstance(val, SpecialCellValue):
             return val.str
@@ -150,16 +163,22 @@ def _parse_cell_input(value: CellValue) -> CellValue:
         ValueError: For invalid cell values.
 
     Returns:
-        The cell value, either as a normalized string, or a SpecialCellValue enum.
+        The cell value, either as a normalized string, SpecialCellValue, or Rebus.
     """
-    if isinstance(value, SpecialCellValue):
+    if isinstance(value, (SpecialCellValue, Rebus)):
         return value
-    elif not isinstance(value, str) or len(value) != 1:
-        raise ValueError
-    else:
+    elif isinstance(value, str):
         if value in SpecialCellValue.BLACK.input_str_reprs:
             return SpecialCellValue.BLACK
         elif value in SpecialCellValue.EMPTY.input_str_reprs:
             return SpecialCellValue.EMPTY
+        clean = value.strip()
+        if clean in SpecialCellValue.BLACK.input_str_reprs:
+            return SpecialCellValue.BLACK
+        elif clean in SpecialCellValue.EMPTY.input_str_reprs:
+            return SpecialCellValue.EMPTY
+        elif len(clean) == 1:
+            return clean.upper()
         else:
-            return value.upper()
+            raise ValueError(f"Invalid cell value length: {value!r}")
+    raise ValueError(f"Invalid cell value: {value!r}")

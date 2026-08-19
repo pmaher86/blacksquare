@@ -248,9 +248,28 @@ impl Grid {
 
     pub fn get_word_value(&self, word_index: WordIndex) -> Option<String> {
         let slot = self.word_slots.get(&word_index)?;
-        let mut s = String::with_capacity(slot.length);
+        let mut s = String::new();
         for &(r, c) in &slot.cell_indices {
-            s.push_str(&self.get_cell(r, c).value.to_str());
+            let cell = self.get_cell(r, c);
+            match &cell.value {
+                crate::cell::CellValue::Empty => s.push(' '),
+                crate::cell::CellValue::Black => s.push('█'),
+                crate::cell::CellValue::Letter(ch) => s.push(*ch),
+                crate::cell::CellValue::Rebus { across, down } => {
+                    let val = match slot.direction {
+                        Direction::Across => across,
+                        Direction::Down => down,
+                    };
+                    s.push('(');
+                    s.push_str(val);
+                    s.push(')');
+                }
+                crate::cell::CellValue::Schrodinger(parts) => {
+                    s.push('(');
+                    s.push_str(&parts.join("/"));
+                    s.push(')');
+                }
+            }
         }
         Some(s)
     }

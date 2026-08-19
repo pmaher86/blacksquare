@@ -18,6 +18,31 @@ print(w.value)  # 'HELLO'
 print(len(w))  # 5
 ```
 
+---
+
+## Rebus Words and Automatic Interpretation
+
+When a word contains a `Rebus` cell:
+1. `w.value` and `repr(w)` automatically render the rebus in parentheses, e.g. `"AB(FOO)CD"`.
+2. Setting a word value via plain strings (e.g. `xw[ACROSS, 1] = "ABFOOCD"`) or parenthesized strings (e.g. `xw[ACROSS, 1] = "AB(FOO)CD"`) automatically matches and interprets rebus cells.
+
+```python
+from blacksquare import Crossword, ACROSS, Rebus
+
+xw = Crossword(5)
+
+# Method A: Pre-declaring the Rebus cell
+xw[0, 2] = Rebus("FOO")
+xw[ACROSS, 1] = "ABFOOCD"
+print(xw[ACROSS, 1].value)  # 'AB(FOO)CD'
+
+# Method B: Direct inline parenthesized assignment
+xw[ACROSS, 1] = "AB(HEART)CD"
+print(xw[0, 2].value)  # Rebus('HEART')
+```
+
+---
+
 ## Traversing Crosses
 
 Every word slot knows which crossing words intersect each of its letters:
@@ -31,6 +56,8 @@ for i, cross in enumerate(w.crosses):
         )
 ```
 
+---
+
 ## Assigning Clues
 
 Clues can be attached directly to word objects or viewed as a dictionary:
@@ -39,6 +66,8 @@ Clues can be attached directly to word objects or viewed as a dictionary:
 xw[ACROSS, 1].clue = "Greeting"
 print(xw.clues)
 ```
+
+---
 
 ## Iterating Over Words and Cells
 

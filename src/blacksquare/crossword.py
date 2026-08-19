@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import importlib
 import io
+import os
+from collections.abc import Iterable, Iterator
 from secrets import token_hex
-from typing import Any, Iterable, Iterator, overload
+from typing import Any, BinaryIO, overload
 
 import numpy as np
-import puz
 import rich.box
 from rich.console import Console
 from rich.table import Table
@@ -22,11 +23,22 @@ from blacksquare._blacksquare_rs import (
 )
 from blacksquare.cell import Cell
 from blacksquare.html import CSS_TEMPLATE
+from blacksquare.puz import (
+    BLACKSQUARE,
+    BLACKSQUARE2,
+    BLANKSQUARE,
+    ExtensionCode,
+    GridMarkup,
+    PuzData,
+    parse_rebus_table,
+    serialize_rebus_table,
+)
 from blacksquare.symmetry import Symmetry
 from blacksquare.types import (
     CellIndex,
     CellValue,
     Direction,
+    Rebus,
     SpecialCellValue,
     WordIndex,
 )
@@ -264,21 +276,34 @@ class Crossword:
         if not (0 <= r < self.num_rows and 0 <= c < self.num_cols):
             raise IndexError(f"Cell index {(r, c)} out of bounds")
 
-        if isinstance(value, SpecialCellValue):
-            val_str = value.str
+        if isinstance(value, Rebus):
+            self._inner.set_cell_rebus(r, c, value.across, value.down)
+        elif isinstance(value, SpecialCellValue):
+            self._inner.set_cell_value(r, c, value.str)
         elif isinstance(value, Cell):
-            val_str = value.str
+            if isinstance(value.value, Rebus):
+                self._inner.set_cell_rebus(r, c, value.value.across, value.value.down)
+            else:
+                self._inner.set_cell_value(r, c, value.str)
+        elif isinstance(value, str):
+            if value in SpecialCellValue.BLACK.input_str_reprs:
+                self._inner.set_cell_value(r, c, SpecialCellValue.BLACK.str)
+            elif value in SpecialCellValue.EMPTY.input_str_reprs:
+                self._inner.set_cell_value(r, c, SpecialCellValue.EMPTY.str)
+            elif len(value) == 1:
+                self._inner.set_cell_value(r, c, value.upper())
+            else:
+                clean = value.strip()
+                if clean in SpecialCellValue.BLACK.input_str_reprs:
+                    self._inner.set_cell_value(r, c, SpecialCellValue.BLACK.str)
+                elif clean in SpecialCellValue.EMPTY.input_str_reprs:
+                    self._inner.set_cell_value(r, c, SpecialCellValue.EMPTY.str)
+                elif len(clean) == 1:
+                    self._inner.set_cell_value(r, c, clean.upper())
+                else:
+                    raise ValueError(f"Invalid cell value length: {value!r}")
         else:
-            val_str = str(value)
-            if (
-                len(val_str) != 1
-                and val_str
-                not in SpecialCellValue.BLACK.input_str_reprs
-                + SpecialCellValue.EMPTY.input_str_reprs
-            ):
-                raise ValueError(f"Invalid cell value length: {val_str}")
-
-        self._inner.set_cell_value(r, c, val_str)
+            raise ValueError(f"Invalid cell value type: {type(value)}")
 
     def set_word(self, word_index: WordIndex, value: str) -> None:
         """Sets a word to a new value.
@@ -289,14 +314,17 @@ class Crossword:
         """
         if not isinstance(value, str):
             raise ValueError(f"Word value must be str, got {type(value)}")
-        r_dir = self._to_rust_dir(word_index[0])
-        num = int(word_index[1])
-        try:
-            self._inner.set_word_value(r_dir, num, str(value).upper())
-        except ValueError as e:
-            if "not found in grid" in str(e):
-                raise IndexError(str(e))
-            raise e
+
+        direction, num = word_index[0], int(word_index[1])
+        r_dir = self._to_rust_dir(direction)
+        cell_indices = self._inner.get_word_cell_indices(r_dir, num)
+        if cell_indices is None:
+            raise IndexError(f"Word {word_index} not found in grid")
+
+        word_cells = [self[r, c] for r, c in cell_indices]
+        new_values = _parse_word_string_to_cell_values(word_cells, direction, value)
+        for (r, c), new_val in zip(cell_indices, new_values):
+            self.set_cell((r, c), new_val)
 
     def get_cell_number(self, cell_index: CellIndex) -> int | None:
         """Gets the crossword numeral at a given cell, if it exists.
@@ -537,45 +565,158 @@ class Crossword:
         return None
 
     @classmethod
-    def from_puz(cls, filename: str) -> Crossword:
-        """Creates a Crossword object from a .puz file."""
-        puz_obj = puz.read(filename)
-        grid = np.reshape(
-            list(puz_obj.solution),
-            (puz_obj.height, puz_obj.width),
+    def from_puz(
+        cls,
+        source: str | os.PathLike[str] | bytes | BinaryIO,
+        word_list: WordList | None = None,
+    ) -> Crossword:
+        """Creates a Crossword object from a .puz file path, bytes, or file-like object.
+
+        Restores the full grid, words, clues, rebus cells (from GRBS/RTBL extensions),
+        and circled cells (from GEXT extension).
+        """
+        if isinstance(source, (str, os.PathLike)):
+            with open(source, "rb") as f:
+                data = f.read()
+        elif isinstance(source, bytes):
+            data = source
+        elif hasattr(source, "read"):
+            data = source.read()
+        else:
+            raise TypeError(f"Unsupported source type for from_puz: {type(source)}")
+
+        puz_data = PuzData.from_bytes(data)
+        xw = cls(
+            num_rows=puz_data.height,
+            num_cols=puz_data.width,
+            symmetry=None,
+            word_list=word_list,
         )
-        xw = cls(grid=grid)
-        for cn in puz_obj.clue_numbering().across:
-            xw[ACROSS, cn["num"]].clue = cn["clue"]
-        for cn in puz_obj.clue_numbering().down:
-            xw[DOWN, cn["num"]].clue = cn["clue"]
+
+        # Rebus reconstruction
+        rebus_dict: dict[int, str] = {}
+        if ExtensionCode.RebusSolutions in puz_data.extensions:
+            rtbl_str = puz_data.extensions[ExtensionCode.RebusSolutions].decode(
+                puz_data.encoding, "replace"
+            )
+            rebus_dict = parse_rebus_table(rtbl_str)
+
+        grbs_data = puz_data.extensions.get(ExtensionCode.Rebus, b"")
+        gext_data = puz_data.extensions.get(ExtensionCode.Markup, b"")
+
+        for r in range(puz_data.height):
+            for c in range(puz_data.width):
+                idx = r * puz_data.width + c
+                ch = puz_data.solution[idx]
+                if ch in [BLACKSQUARE, BLACKSQUARE2, "#"]:
+                    xw[r, c] = SpecialCellValue.BLACK
+                elif grbs_data and idx < len(grbs_data) and grbs_data[idx] > 0:
+                    k = grbs_data[idx] - 1
+                    rebus_val = rebus_dict.get(k, ch)
+                    xw[r, c] = Rebus(rebus_val)
+                elif ch in [BLANKSQUARE, " ", "?", "_"]:
+                    xw[r, c] = SpecialCellValue.EMPTY
+                else:
+                    xw[r, c] = ch
+
+                if gext_data and idx < len(gext_data):
+                    if gext_data[idx] & GridMarkup.Circled:
+                        xw[r, c].circled = True
+
+        sorted_words = sorted(
+            list(xw.iterwords()), key=lambda w: (w.number, w.direction)
+        )
+        for w, clue_text in zip(sorted_words, puz_data.clues):
+            w.clue = clue_text
+
         return xw
 
-    def to_puz(self, filename: str) -> None:
-        """Outputs a .puz file from the Crossword object."""
-        puz_black, puz_empty = ".", "-"
-        puz_obj = puz.Puzzle()
-        puz_obj.height = self.num_rows
-        puz_obj.width = self.num_cols
+    def to_puz(
+        self,
+        target: str | os.PathLike[str] | BinaryIO | None = None,
+        *,
+        title: str = "",
+        author: str = "",
+        copyright: str = "",
+        notes: str = "",
+    ) -> bytes:
+        """Exports the Crossword object to Across Lite .puz binary format.
 
-        char_array = np.array([cell.str for cell in self.itercells()])
-        puz_obj.solution = (
-            "".join(char_array)
-            .replace(EMPTY.str, puz_empty)
-            .replace(BLACK.str, puz_black)
-        )
-        fill_grid = char_array.copy()
-        fill_grid[fill_grid != BLACK.str] = puz_empty
-        fill_grid[fill_grid == BLACK.str] = puz_black
-        puz_obj.fill = "".join(fill_grid)
+        Saves full grid solutions, clues, rebus cells (via GRBS and RTBL extensions),
+        and circled cells (via GEXT extension). If target is provided, writes to the
+        file or stream; otherwise returns the raw bytes.
+        """
+        puz_data = PuzData(version="1.3")
+        puz_data.width = self.num_cols
+        puz_data.height = self.num_rows
+        puz_data.title = title
+        puz_data.author = author
+        puz_data.copyright = copyright
+        puz_data.notes = notes
+
+        n_cells = self.num_rows * self.num_cols
+        sol_chars: list[str] = []
+        fill_chars: list[str] = []
+
+        rebus_map: dict[str, int] = {}
+        grbs_bytes = bytearray(n_cells)
+        gext_bytes = bytearray(n_cells)
+        has_rebus = False
+        has_gext = False
+
+        for r in range(self.num_rows):
+            for c in range(self.num_cols):
+                idx = r * self.num_cols + c
+                cell = self[r, c]
+                if cell == SpecialCellValue.BLACK:
+                    sol_chars.append(BLACKSQUARE)
+                    fill_chars.append(BLACKSQUARE)
+                else:
+                    fill_chars.append(BLANKSQUARE)
+                    if isinstance(cell.value, Rebus):
+                        has_rebus = True
+                        rebus_str = str(cell.value)
+                        if rebus_str not in rebus_map:
+                            rebus_map[rebus_str] = len(rebus_map)
+                        k = rebus_map[rebus_str]
+                        grbs_bytes[idx] = k + 1
+                        sol_chars.append(cell.value.across[0])
+                    elif cell.is_open():
+                        sol_chars.append(BLANKSQUARE)
+                    else:
+                        sol_chars.append(cell.str[0] if cell.str else BLANKSQUARE)
+
+                if cell.circled:
+                    has_gext = True
+                    gext_bytes[idx] |= GridMarkup.Circled
+
+        puz_data.solution = "".join(sol_chars)
+        puz_data.fill = "".join(fill_chars)
+
         sorted_words = sorted(
             list(self.iterwords()), key=lambda w: (w.number, w.direction)
         )
-        puz_obj.clues = [w.clue for w in sorted_words]
-        setattr(puz_obj, "cksum_global", puz_obj.global_cksum())
-        setattr(puz_obj, "cksum_hdr", puz_obj.header_cksum())
-        setattr(puz_obj, "cksum_magic", puz_obj.magic_cksum())
-        puz_obj.save(filename)
+        puz_data.clues = [w.clue or "" for w in sorted_words]
+
+        if has_rebus:
+            puz_data.extensions[ExtensionCode.Rebus] = bytes(grbs_bytes)
+            inv_rebus = {k: v for v, k in rebus_map.items()}
+            puz_data.extensions[ExtensionCode.RebusSolutions] = puz_data.encode(
+                serialize_rebus_table(inv_rebus)
+            )
+
+        if has_gext:
+            puz_data.extensions[ExtensionCode.Markup] = bytes(gext_bytes)
+
+        raw_bytes = puz_data.to_bytes()
+
+        if isinstance(target, (str, os.PathLike)):
+            with open(target, "wb") as f:
+                f.write(raw_bytes)
+        elif hasattr(target, "write"):
+            target.write(raw_bytes)
+
+        return raw_bytes
 
     def to_pdf(
         self,
@@ -705,10 +846,21 @@ class Crossword:
         """Returns an HTML rendering of the puzzle."""
         size_px = size_px or self.display_size_px
         suffix = token_hex(4)
+        cell_size = size_px / max(self.num_rows, self.num_cols)
         cells = []
         for c in self.itercells():
             cell_number_span = f'<span class="cell-number">{c.number or ""}</span>'
-            letter_span = f'<span class="letter">{c.str if c != BLACK else ""}</span>'
+            if c != BLACK:
+                if len(c.str) > 1:
+                    r_font_size = max(
+                        int((cell_size * 0.85) / (len(c.str) * 0.55 + 0.4)),
+                        6,
+                    )
+                    letter_span = f'<span class="letter rebus" style="font-size:{r_font_size}px;letter-spacing:-0.5px;">{c.str}</span>'
+                else:
+                    letter_span = f'<span class="letter">{c.str}</span>'
+            else:
+                letter_span = '<span class="letter"></span>'
             circle_span = '<span class="circle"></span>'
             if c == BLACK:
                 extra_class = " black"
@@ -724,14 +876,16 @@ class Crossword:
             </div>
             """
             cells.append(cell_div)
+        val_font_size = max(int(cell_size * 0.55), 10)
+        rebus_bottom = max(int(val_font_size * 0.38), 3)
         aspect_ratio = self.num_rows / self.num_cols
-        cell_size = size_px / max(self.num_rows, self.num_cols)
         css = CSS_TEMPLATE.format(
             num_cols=self.num_cols,
             height=size_px * min(1, aspect_ratio),
             width=size_px * min(1, 1 / aspect_ratio),
-            num_font_size=int(cell_size * 0.3),
-            val_font_size=int(cell_size * 0.6),
+            num_font_size=max(int(cell_size * 0.28), 7),
+            val_font_size=val_font_size,
+            rebus_bottom=rebus_bottom,
             circle_dim=cell_size - 1,
             suffix=suffix,
         )
@@ -746,3 +900,142 @@ class Crossword:
             </div>
         </div>
         """
+
+
+def _parse_word_string_to_cell_values(
+    cells: list[Cell], direction: Direction, value: str
+) -> list[CellValue]:
+    """Parses an input string to assign to a list of word slot cells.
+
+    Supports:
+      1. Explicit parenthesized rebus notation: "AB(FOO)CD"
+      2. Plain strings where existing rebus cells consume multi-letter substrings: "ABFOOCD"
+      3. Plain strings matching the cell count: "ABCDE"
+    """
+    num_cells = len(cells)
+    clean_val = value.upper()
+
+    # Case 1: Explicit parentheses syntax: "AB(FOO)CD"
+    if "(" in clean_val and ")" in clean_val:
+        tokens: list[str] = []
+        i = 0
+        while i < len(clean_val):
+            if clean_val[i] == "(":
+                j = clean_val.find(")", i)
+                if j == -1:
+                    raise ValueError(f"Unmatched parenthesis in word value: {value}")
+                tokens.append(clean_val[i + 1 : j])
+                i = j + 1
+            else:
+                tokens.append(clean_val[i])
+                i += 1
+
+        if len(tokens) == num_cells:
+            result_parens: list[CellValue] = []
+            for cell, tok in zip(cells, tokens):
+                if len(tok) == 1:
+                    if tok in SpecialCellValue.EMPTY.input_str_reprs:
+                        result_parens.append(SpecialCellValue.EMPTY)
+                    elif tok in SpecialCellValue.BLACK.input_str_reprs:
+                        result_parens.append(SpecialCellValue.BLACK)
+                    else:
+                        result_parens.append(tok)
+                else:
+                    if isinstance(cell.value, Rebus):
+                        if direction == Direction.ACROSS:
+                            result_parens.append(
+                                Rebus(across=tok, down=cell.value.down)
+                            )
+                        else:
+                            result_parens.append(
+                                Rebus(across=cell.value.across, down=tok)
+                            )
+                    else:
+                        result_parens.append(Rebus(tok))
+            return result_parens
+
+    # Case 2: Matching current cell directional lengths (e.g. "ABFOOCD" when cell 2 has across len 3)
+    cell_lens: list[int] = []
+    rebus_indices = [i for i, c in enumerate(cells) if isinstance(c.value, Rebus)]
+    for c in cells:
+        if isinstance(c.value, Rebus):
+            cell_lens.append(len(c.value.get_value(direction)))
+        else:
+            cell_lens.append(1)
+
+    if rebus_indices and sum(cell_lens) == len(clean_val):
+        result_rebus: list[CellValue] = []
+        cursor = 0
+        for cell, clen in zip(cells, cell_lens):
+            chunk = clean_val[cursor : cursor + clen]
+            cursor += clen
+            if isinstance(cell.value, Rebus):
+                if direction == Direction.ACROSS:
+                    result_rebus.append(Rebus(across=chunk, down=cell.value.down))
+                else:
+                    result_rebus.append(Rebus(across=cell.value.across, down=chunk))
+            else:
+                if chunk in SpecialCellValue.EMPTY.input_str_reprs:
+                    result_rebus.append(SpecialCellValue.EMPTY)
+                elif chunk in SpecialCellValue.BLACK.input_str_reprs:
+                    result_rebus.append(SpecialCellValue.BLACK)
+                else:
+                    result_rebus.append(chunk)
+        return result_rebus
+
+    # Case 3: Exactly 1 rebus cell in the word slot and len(clean_val) >= num_cells
+    if len(rebus_indices) == 1 and len(clean_val) >= num_cells:
+        k = rebus_indices[0]
+        prefix_len = k
+        suffix_len = num_cells - 1 - k
+        mid_len = len(clean_val) - prefix_len - suffix_len
+
+        result_single_rebus: list[CellValue] = []
+        for idx in range(prefix_len):
+            ch = clean_val[idx]
+            if ch in SpecialCellValue.EMPTY.input_str_reprs:
+                result_single_rebus.append(SpecialCellValue.EMPTY)
+            elif ch in SpecialCellValue.BLACK.input_str_reprs:
+                result_single_rebus.append(SpecialCellValue.BLACK)
+            else:
+                result_single_rebus.append(ch)
+
+        mid_chunk = clean_val[prefix_len : prefix_len + mid_len]
+        rebus_cell = cells[k]
+        assert isinstance(rebus_cell.value, Rebus)
+        if direction == Direction.ACROSS:
+            result_single_rebus.append(
+                Rebus(across=mid_chunk, down=rebus_cell.value.down)
+            )
+        else:
+            result_single_rebus.append(
+                Rebus(across=rebus_cell.value.across, down=mid_chunk)
+            )
+
+        suffix_start = prefix_len + mid_len
+        for idx in range(suffix_len):
+            ch = clean_val[suffix_start + idx]
+            if ch in SpecialCellValue.EMPTY.input_str_reprs:
+                result_single_rebus.append(SpecialCellValue.EMPTY)
+            elif ch in SpecialCellValue.BLACK.input_str_reprs:
+                result_single_rebus.append(SpecialCellValue.BLACK)
+            else:
+                result_single_rebus.append(ch)
+
+        return result_single_rebus
+
+    # Case 4: Exact character-to-cell length match
+    if len(clean_val) == num_cells:
+        result_simple: list[CellValue] = []
+        for cell, ch in zip(cells, clean_val):
+            if ch in SpecialCellValue.EMPTY.input_str_reprs:
+                result_simple.append(SpecialCellValue.EMPTY)
+            elif ch in SpecialCellValue.BLACK.input_str_reprs:
+                result_simple.append(SpecialCellValue.BLACK)
+            else:
+                result_simple.append(ch)
+        return result_simple
+
+    raise ValueError(
+        f"Value '{value}' (length {len(clean_val)}) does not match word slot length {num_cells}"
+    )
