@@ -33,9 +33,35 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Set dynamic version from Git
+        shell: bash
+        run: |
+          python3 -c "
+          import subprocess, re
+          try:
+              desc = subprocess.check_output(['git', 'describe', '--tags', '--always', '--long'], text=True).strip()
+              m = re.match(r'^v?(\d+)\.(\d+)\.(\d+)(?:-(\d+)-g([0-9a-f]+))?$', desc)
+              if m:
+                  major, minor, patch, dist, commit = m.groups()
+                  if not dist or dist == '0':
+                      ver = f'{major}.{minor}.{patch}'
+                  else:
+                      ver = f'{major}.{minor}.{int(patch)+1}-dev.{dist}'
+                  with open('Cargo.toml') as f:
+                      c = f.read()
+                  with open('Cargo.toml', 'w') as f:
+                      f.write(re.sub(r'version = \"[^\"]+\"', f'version = \"{ver}\"', c, count=1))
+                  print(f'Using dynamic version: {ver}')
+          except Exception as e:
+              print(f'Fallback to Cargo.toml version: {e}')
+          "
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -55,6 +81,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set dynamic version from Git
+        shell: bash
+        run: |
+          python3 -c "
+          import subprocess, re
+          try:
+              desc = subprocess.check_output(['git', 'describe', '--tags', '--always', '--long'], text=True).strip()
+              m = re.match(r'^v?(\d+)\.(\d+)\.(\d+)(?:-(\d+)-g([0-9a-f]+))?$', desc)
+              if m:
+                  major, minor, patch, dist, commit = m.groups()
+                  if not dist or dist == '0':
+                      ver = f'{major}.{minor}.{patch}'
+                  else:
+                      ver = f'{major}.{minor}.{int(patch)+1}-dev.{dist}'
+                  with open('Cargo.toml') as f:
+                      c = f.read()
+                  with open('Cargo.toml', 'w') as f:
+                      f.write(re.sub(r'version = \"[^\"]+\"', f'version = \"{ver}\"', c, count=1))
+                  print(f'Using dynamic version: {ver}')
+          except Exception as e:
+              print(f'Fallback to Cargo.toml version: {e}')
+          "
+
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
@@ -116,4 +168,5 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: dist/
+          skip-existing: true
           verbose: true
