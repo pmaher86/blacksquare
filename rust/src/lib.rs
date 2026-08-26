@@ -586,32 +586,50 @@ impl PyCrossword {
         }
     }
 
-    #[pyo3(signature = (word_list, timeout=None, temperature=None, score_filter=None, allow_repeats=None, upweight_diverse_letters=None, show_progress=None))]
+    #[pyo3(signature = (word_list, timeout=None, temperature=None, score_filter=None, allow_repeats=None, upweight_diverse_letters=None, progress_callback=None))]
     pub fn fill(
         &self,
+        py: Python<'_>,
         word_list: &PyWordList,
         timeout: Option<f64>,
         temperature: Option<f64>,
         score_filter: Option<f64>,
         allow_repeats: Option<bool>,
         upweight_diverse_letters: Option<bool>,
-        show_progress: Option<bool>,
+        progress_callback: Option<Py<PyAny>>,
     ) -> Option<PyCrossword> {
         let temp = temperature.unwrap_or(0.0);
         let repeats = allow_repeats.unwrap_or(false);
         let upweight = upweight_diverse_letters.unwrap_or(false);
-        let progress = show_progress.unwrap_or(true);
-        self.core
-            .fill(
-                &word_list.inner,
-                timeout,
-                temp,
-                score_filter,
-                repeats,
-                upweight,
-                progress,
-            )
-            .map(|core| PyCrossword { core })
+
+        if let Some(cb) = progress_callback {
+            let mut py_cb = |grid_str: &str, elapsed: f64, states: usize, is_final: bool, is_solved: bool| {
+                let _ = cb.call1(py, (grid_str, elapsed, states, is_final, is_solved));
+            };
+            self.core
+                .fill(
+                    &word_list.inner,
+                    timeout,
+                    temp,
+                    score_filter,
+                    repeats,
+                    upweight,
+                    Some(&mut py_cb),
+                )
+                .map(|core| PyCrossword { core })
+        } else {
+            self.core
+                .fill(
+                    &word_list.inner,
+                    timeout,
+                    temp,
+                    score_filter,
+                    repeats,
+                    upweight,
+                    None::<fn(&str, f64, usize, bool, bool)>,
+                )
+                .map(|core| PyCrossword { core })
+        }
     }
 
     #[pyo3(signature = (numbers=false))]

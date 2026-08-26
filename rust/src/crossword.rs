@@ -325,7 +325,7 @@ impl CrosswordCore {
     }
 
     /// High-performance sequential backtracking solver.
-    pub fn fill(
+    pub fn fill<F>(
         &self,
         word_list: &Arc<FastWordList>,
         timeout_secs: Option<f64>,
@@ -333,8 +333,11 @@ impl CrosswordCore {
         score_filter: Option<f64>,
         allow_repeats: bool,
         upweight_diverse_letters: bool,
-        show_progress: bool,
-    ) -> Option<CrosswordCore> {
+        mut progress_callback: Option<F>,
+    ) -> Option<CrosswordCore>
+    where
+        F: FnMut(&str, f64, usize, bool, bool),
+    {
         let effective_word_list = if let Some(thresh) = score_filter {
             Arc::new(word_list.score_filter(thresh))
         } else {
@@ -346,7 +349,7 @@ impl CrosswordCore {
         let start_time = Instant::now();
         let mut last_display = Instant::now();
         let mut states_visited: usize = 0;
-        let mut displayed_lines: usize = 0;
+        let mut fired_progress = false;
         let mut dead_end_states: AHashSet<u64> = AHashSet::new();
 
         // Persistent used_words set on recursion stack
@@ -371,42 +374,34 @@ impl CrosswordCore {
                 temperature,
                 allow_repeats,
                 upweight_diverse_letters,
-                show_progress,
+                &mut progress_callback,
                 &mut last_display,
                 &mut states_visited,
-                &mut displayed_lines,
+                &mut fired_progress,
                 &mut dead_end_states,
                 &mut used_words,
             ) {
-                if displayed_lines > 0 {
-                    let grid_str = cloned.to_text_grid(false);
-                    let exhaust_frame = format!(
-                        "=== Crossword Search Exhausted (Time: {:.3}s, States: {}) ===\n{}\n",
-                        start_time.elapsed().as_secs_f64(),
-                        states_visited,
-                        grid_str
-                    );
-                    eprint!("\x1b[{}A\r\x1b[J{}\x1b[?25h", displayed_lines, exhaust_frame);
+                if fired_progress {
+                    if let Some(cb) = &mut progress_callback {
+                        let grid_str = cloned.to_text_grid(false);
+                        cb(&grid_str, start_time.elapsed().as_secs_f64(), states_visited, true, false);
+                    }
                 }
                 return None;
             }
         }
 
-        if displayed_lines > 0 {
-            let grid_str = cloned.to_text_grid(false);
-            let final_frame = format!(
-                "=== Crossword Solved in {:.3}s ({} states explored) ===\n{}\n",
-                start_time.elapsed().as_secs_f64(),
-                states_visited,
-                grid_str
-            );
-            eprint!("\x1b[{}A\r\x1b[J{}\x1b[?25h", displayed_lines, final_frame);
+        if fired_progress {
+            if let Some(cb) = &mut progress_callback {
+                let grid_str = cloned.to_text_grid(false);
+                cb(&grid_str, start_time.elapsed().as_secs_f64(), states_visited, true, true);
+            }
         }
 
         Some(cloned)
     }
 
-    fn solve_subgraph(
+    fn solve_subgraph<F>(
         xw: &mut CrosswordCore,
         active_subgraph: &[WordIndex],
         word_list: &Arc<FastWordList>,
@@ -415,13 +410,16 @@ impl CrosswordCore {
         temperature: f64,
         allow_repeats: bool,
         upweight_diverse_letters: bool,
-        show_progress: bool,
+        progress_callback: &mut Option<F>,
         last_display: &mut Instant,
         states_visited: &mut usize,
-        displayed_lines: &mut usize,
+        fired_progress: &mut bool,
         dead_end_states: &mut AHashSet<u64>,
         used_words: &mut AHashSet<String>,
-    ) -> bool {
+    ) -> bool
+    where
+        F: FnMut(&str, f64, usize, bool, bool),
+    {
         // Check timeout
         if let Some(timeout) = timeout_secs {
             if start_time.elapsed().as_secs_f64() > timeout {
@@ -430,24 +428,14 @@ impl CrosswordCore {
         }
 
         *states_visited += 1;
-        if show_progress && start_time.elapsed() >= std::time::Duration::from_millis(100) {
+        if progress_callback.is_some() && start_time.elapsed() >= std::time::Duration::from_millis(100) {
             if last_display.elapsed() >= std::time::Duration::from_millis(100) {
                 *last_display = Instant::now();
-                let grid_str = xw.to_text_grid(false);
-                let frame = format!(
-                    "=== Crossword Fill in Progress [Elapsed: {:.2}s | States: {}] ===\n{}\n",
-                    start_time.elapsed().as_secs_f64(),
-                    *states_visited,
-                    grid_str
-                );
-                let new_lines = frame.lines().count();
-                if *displayed_lines > 0 {
-                    eprint!("\x1b[{}A\r\x1b[J", *displayed_lines);
-                } else {
-                    eprint!("\x1b[?25l"); // hide cursor on first render
+                *fired_progress = true;
+                if let Some(cb) = progress_callback {
+                    let grid_str = xw.to_text_grid(false);
+                    cb(&grid_str, start_time.elapsed().as_secs_f64(), *states_visited, false, false);
                 }
-                eprint!("{}", frame);
-                *displayed_lines = new_lines;
             }
         }
 
@@ -650,10 +638,10 @@ impl CrosswordCore {
                 temperature,
                 allow_repeats,
                 upweight_diverse_letters,
-                show_progress,
+                progress_callback,
                 last_display,
                 states_visited,
-                displayed_lines,
+                fired_progress,
                 dead_end_states,
                 used_words,
             ) {
@@ -1052,10 +1040,10 @@ mod tests {
         let wl = Arc::new(FastWordList::default());
         let xw = CrosswordCore::new(3, 3, None, 450);
 
-        let filled_default = xw.fill(&wl, Some(5.0), 0.0, None, false, false, false);
+        let filled_default = xw.fill(&wl, Some(5.0), 0.0, None, false, false, None::<fn(&str, f64, usize, bool, bool)>);
         assert!(filled_default.is_some());
 
-        let filled_upweighted = xw.fill(&wl, Some(5.0), 0.0, None, false, true, false);
+        let filled_upweighted = xw.fill(&wl, Some(5.0), 0.0, None, false, true, None::<fn(&str, f64, usize, bool, bool)>);
         assert!(filled_upweighted.is_some());
     }
 

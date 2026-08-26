@@ -141,7 +141,7 @@ class PyCrossword:
         score_filter: float | None = None,
         allow_repeats: bool = False,
         upweight_diverse_letters: bool = False,
-        show_progress: bool = True,
+        progress_callback: Any = None,
     ) -> PyCrossword | None: ...
     def to_text_grid(self, numbers: bool = False) -> str: ...
     def check(
