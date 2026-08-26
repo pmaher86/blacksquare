@@ -536,6 +536,7 @@ class Crossword:
         score_filter: float | None = None,
         allow_repeats: bool = False,
         upweight_diverse_letters: bool = False,
+        show_progress: bool = True,
     ) -> Crossword | None:
         """Searches for a possible fill, and returns the result as a new Crossword
         object. Backed by the native Rust backtracking solver.
@@ -549,6 +550,8 @@ class Crossword:
             upweight_diverse_letters: Whether to upweight rare/diverse letters
                 (J, Z, Q, X, etc.) during crossing candidate evaluation.
                 Defaults to False.
+            show_progress: Whether to display live in-progress grid updates
+                in the terminal for long-running searches (>100ms). Defaults to True.
 
         Returns:
             The filled Crossword, or None if no solution found / timed out.
@@ -561,6 +564,7 @@ class Crossword:
             score_filter=score_filter,
             allow_repeats=allow_repeats,
             upweight_diverse_letters=upweight_diverse_letters,
+            show_progress=show_progress,
         )
         if filled_inner is not None:
             return Crossword(
@@ -805,6 +809,7 @@ class Crossword:
 
     def _text_grid(self, numbers: bool = False) -> Table:
         """Returns a rich Table that displays the crossword."""
+        superscripts = ("⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹")
         table = Table(
             box=rich.box.SQUARE,
             show_header=False,
@@ -824,12 +829,16 @@ class Crossword:
                     if numbers:
                         strings.append(str(cell.number) if cell.number else "")
                     else:
-                        strings.append(
-                            f"{'^' if cell.number else ' '}{cell.str}{'*' if cell.shaded or cell.circled else ' '}"
-                        )
+                        prefix = superscripts[cell.number % 10] if cell.number else " "
+                        suffix = "*" if cell.shaded or cell.circled else " "
+                        strings.append(f"{prefix}{cell.str}{suffix}")
             table.add_row(*strings)
 
         return table
+
+    def to_text_grid(self, numbers: bool = False) -> str:
+        """Returns a formatted text table representation of the crossword grid from Rust."""
+        return self._inner.to_text_grid(numbers)
 
     def pprint(self, numbers: bool = False) -> None:
         """Prints a formatted string representation of the crossword fill."""

@@ -586,7 +586,7 @@ impl PyCrossword {
         }
     }
 
-    #[pyo3(signature = (word_list, timeout=None, temperature=None, score_filter=None, allow_repeats=None, upweight_diverse_letters=None))]
+    #[pyo3(signature = (word_list, timeout=None, temperature=None, score_filter=None, allow_repeats=None, upweight_diverse_letters=None, show_progress=None))]
     pub fn fill(
         &self,
         word_list: &PyWordList,
@@ -595,13 +595,28 @@ impl PyCrossword {
         score_filter: Option<f64>,
         allow_repeats: Option<bool>,
         upweight_diverse_letters: Option<bool>,
+        show_progress: Option<bool>,
     ) -> Option<PyCrossword> {
         let temp = temperature.unwrap_or(0.0);
         let repeats = allow_repeats.unwrap_or(false);
         let upweight = upweight_diverse_letters.unwrap_or(false);
+        let progress = show_progress.unwrap_or(true);
         self.core
-            .fill(&word_list.inner, timeout, temp, score_filter, repeats, upweight)
+            .fill(
+                &word_list.inner,
+                timeout,
+                temp,
+                score_filter,
+                repeats,
+                upweight,
+                progress,
+            )
             .map(|core| PyCrossword { core })
+    }
+
+    #[pyo3(signature = (numbers=false))]
+    pub fn to_text_grid(&self, numbers: bool) -> String {
+        self.core.to_text_grid(numbers)
     }
 
     pub fn grid_chars(&self) -> Vec<Vec<String>> {
