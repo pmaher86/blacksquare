@@ -26,6 +26,120 @@ impl CrosswordCore {
         }
     }
 
+    /// Formats the crossword grid as a formatted text table matching the classic continuous square box style.
+    pub fn to_text_grid(&self, numbers: bool) -> String {
+        const SUPERSCRIPT_DIGITS: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+        let num_rows = self.grid.num_rows;
+        let num_cols = self.grid.num_cols;
+        if num_rows == 0 || num_cols == 0 {
+            return String::new();
+        }
+
+        let mut out = String::with_capacity(num_rows * num_cols * 10);
+
+        // 1. Top border: ┌───┬───┬───┐
+        out.push('┌');
+        for c in 0..num_cols {
+            out.push_str("───");
+            if c < num_cols - 1 {
+                out.push('┬');
+            }
+        }
+        out.push_str("┐\n");
+
+        // 2. Rows
+        for r in 0..num_rows {
+            out.push('│');
+            for c in 0..num_cols {
+                let cell = self.grid.get_cell(r, c);
+                let num = self.grid.numbers[self.grid.idx(r, c)];
+                match &cell.value {
+                    CellValue::Black => {
+                        out.push_str("███");
+                    }
+                    CellValue::Letter(ch) => {
+                        let prefix = if num > 0 {
+                            SUPERSCRIPT_DIGITS[(num % 10) as usize]
+                        } else {
+                            ' '
+                        };
+                        let suffix = if cell.shaded || cell.circled { '*' } else { ' ' };
+                        out.push(prefix);
+                        out.push(*ch);
+                        out.push(suffix);
+                    }
+                    CellValue::Rebus { across, down } => {
+                        let prefix = if num > 0 {
+                            SUPERSCRIPT_DIGITS[(num % 10) as usize]
+                        } else {
+                            ' '
+                        };
+                        let suffix = if cell.shaded || cell.circled { '*' } else { ' ' };
+                        let val = if across == down { across } else { across };
+                        out.push(prefix);
+                        out.push_str(val);
+                        out.push(suffix);
+                    }
+                    CellValue::Schrodinger(parts) => {
+                        let prefix = if num > 0 {
+                            SUPERSCRIPT_DIGITS[(num % 10) as usize]
+                        } else {
+                            ' '
+                        };
+                        let suffix = if cell.shaded || cell.circled { '*' } else { ' ' };
+                        let val = parts.join("/");
+                        out.push(prefix);
+                        out.push_str(&val);
+                        out.push(suffix);
+                    }
+                    CellValue::Empty => {
+                        if numbers && num > 0 {
+                            let s = format!("{:^3}", num);
+                            out.push_str(&s);
+                        } else if num > 0 {
+                            let prefix = SUPERSCRIPT_DIGITS[(num % 10) as usize];
+                            let suffix = if cell.shaded || cell.circled { '*' } else { ' ' };
+                            out.push(prefix);
+                            out.push(' ');
+                            out.push(suffix);
+                        } else {
+                            let suffix = if cell.shaded || cell.circled { '*' } else { ' ' };
+                            out.push(' ');
+                            out.push(' ');
+                            out.push(suffix);
+                        }
+                    }
+                }
+                out.push('│');
+            }
+            out.push('\n');
+
+            // Inter-row divider: ├───┼───┼───┤
+            if r < num_rows - 1 {
+                out.push('├');
+                for c in 0..num_cols {
+                    out.push_str("───");
+                    if c < num_cols - 1 {
+                        out.push('┼');
+                    }
+                }
+                out.push_str("┤\n");
+            }
+        }
+
+        // 3. Bottom border: └───┴───┴───┘
+        out.push('└');
+        for c in 0..num_cols {
+            out.push_str("───");
+            if c < num_cols - 1 {
+                out.push('┴');
+            }
+        }
+        out.push('┘');
+
+        out
+    }
+
     pub fn from_cells(num_rows: usize, num_cols: usize, cells: Vec<Cell>, symmetry: Option<Symmetry>, display_size_px: u32) -> Self {
         CrosswordCore {
             grid: Grid::from_cells(num_rows, num_cols, cells),
@@ -219,6 +333,7 @@ impl CrosswordCore {
         score_filter: Option<f64>,
         allow_repeats: bool,
         upweight_diverse_letters: bool,
+        show_progress: bool,
     ) -> Option<CrosswordCore> {
         let effective_word_list = if let Some(thresh) = score_filter {
             Arc::new(word_list.score_filter(thresh))
@@ -229,6 +344,9 @@ impl CrosswordCore {
         let mut cloned = self.clone();
         let subgrids = cloned.grid.get_open_subgrids();
         let start_time = Instant::now();
+        let mut last_display = Instant::now();
+        let mut states_visited: usize = 0;
+        let mut displayed_lines: usize = 0;
         let mut dead_end_states: AHashSet<u64> = AHashSet::new();
 
         // Persistent used_words set on recursion stack
@@ -253,11 +371,36 @@ impl CrosswordCore {
                 temperature,
                 allow_repeats,
                 upweight_diverse_letters,
+                show_progress,
+                &mut last_display,
+                &mut states_visited,
+                &mut displayed_lines,
                 &mut dead_end_states,
                 &mut used_words,
             ) {
+                if displayed_lines > 0 {
+                    let grid_str = cloned.to_text_grid(false);
+                    let exhaust_frame = format!(
+                        "=== Crossword Search Exhausted (Time: {:.3}s, States: {}) ===\n{}\n",
+                        start_time.elapsed().as_secs_f64(),
+                        states_visited,
+                        grid_str
+                    );
+                    eprint!("\x1b[{}A\r\x1b[J{}\x1b[?25h", displayed_lines, exhaust_frame);
+                }
                 return None;
             }
+        }
+
+        if displayed_lines > 0 {
+            let grid_str = cloned.to_text_grid(false);
+            let final_frame = format!(
+                "=== Crossword Solved in {:.3}s ({} states explored) ===\n{}\n",
+                start_time.elapsed().as_secs_f64(),
+                states_visited,
+                grid_str
+            );
+            eprint!("\x1b[{}A\r\x1b[J{}\x1b[?25h", displayed_lines, final_frame);
         }
 
         Some(cloned)
@@ -272,6 +415,10 @@ impl CrosswordCore {
         temperature: f64,
         allow_repeats: bool,
         upweight_diverse_letters: bool,
+        show_progress: bool,
+        last_display: &mut Instant,
+        states_visited: &mut usize,
+        displayed_lines: &mut usize,
         dead_end_states: &mut AHashSet<u64>,
         used_words: &mut AHashSet<String>,
     ) -> bool {
@@ -279,6 +426,28 @@ impl CrosswordCore {
         if let Some(timeout) = timeout_secs {
             if start_time.elapsed().as_secs_f64() > timeout {
                 return false;
+            }
+        }
+
+        *states_visited += 1;
+        if show_progress && start_time.elapsed() >= std::time::Duration::from_millis(100) {
+            if last_display.elapsed() >= std::time::Duration::from_millis(100) {
+                *last_display = Instant::now();
+                let grid_str = xw.to_text_grid(false);
+                let frame = format!(
+                    "=== Crossword Fill in Progress [Elapsed: {:.2}s | States: {}] ===\n{}\n",
+                    start_time.elapsed().as_secs_f64(),
+                    *states_visited,
+                    grid_str
+                );
+                let new_lines = frame.lines().count();
+                if *displayed_lines > 0 {
+                    eprint!("\x1b[{}A\r\x1b[J", *displayed_lines);
+                } else {
+                    eprint!("\x1b[?25l"); // hide cursor on first render
+                }
+                eprint!("{}", frame);
+                *displayed_lines = new_lines;
             }
         }
 
@@ -481,6 +650,10 @@ impl CrosswordCore {
                 temperature,
                 allow_repeats,
                 upweight_diverse_letters,
+                show_progress,
+                last_display,
+                states_visited,
+                displayed_lines,
                 dead_end_states,
                 used_words,
             ) {
@@ -879,10 +1052,20 @@ mod tests {
         let wl = Arc::new(FastWordList::default());
         let xw = CrosswordCore::new(3, 3, None, 450);
 
-        let filled_default = xw.fill(&wl, Some(5.0), 0.0, None, false, false);
+        let filled_default = xw.fill(&wl, Some(5.0), 0.0, None, false, false, false);
         assert!(filled_default.is_some());
 
-        let filled_upweighted = xw.fill(&wl, Some(5.0), 0.0, None, false, true);
+        let filled_upweighted = xw.fill(&wl, Some(5.0), 0.0, None, false, true, false);
         assert!(filled_upweighted.is_some());
+    }
+
+    #[test]
+    fn test_rust_to_text_grid() {
+        let mut xw = CrosswordCore::new(3, 3, None, 450);
+        xw.set_cell(1, 1, CellValue::Black);
+        xw.set_cell(0, 0, CellValue::Letter('A'));
+        let text_grid = xw.to_text_grid(false);
+        assert!(text_grid.contains("██"));
+        assert!(text_grid.contains("A"));
     }
 }
