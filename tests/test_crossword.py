@@ -218,6 +218,17 @@ class TestCrosswordFill:
         result = xw.fill()
         assert result is not None
 
+    def test_fill_upweight_diverse_letters(self):
+        xw = Crossword(3, symmetry=None)
+        # Verify both upweight_diverse_letters=False (default) and True work properly
+        res_default = xw.fill(upweight_diverse_letters=False)
+        assert res_default is not None
+        assert res_default.is_valid(allow_duplicates=True)
+
+        res_upweighted = xw.fill(upweight_diverse_letters=True)
+        assert res_upweighted is not None
+        assert res_upweighted.is_valid(allow_duplicates=True)
+
 
 def test_symmetry_requirements():
     with pytest.raises(ValueError):
