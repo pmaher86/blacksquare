@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import io
 import os
+import sys
 from collections.abc import Iterable, Iterator
 from secrets import token_hex
 from typing import Any, BinaryIO, overload
@@ -54,6 +55,26 @@ except ImportError:
 
 BLACK, EMPTY = SpecialCellValue.BLACK, SpecialCellValue.EMPTY
 ACROSS, DOWN = Direction.ACROSS, Direction.DOWN
+
+
+def _is_notebook() -> bool:
+    try:
+        if "google.colab" in sys.modules:
+            return True
+        ipython = importlib.import_module("IPython")
+        get_ipython = getattr(ipython, "get_ipython", None)
+        if get_ipython is not None:
+            ip = get_ipython()
+            if ip is not None:
+                if ip.__class__.__name__ in ("ZMQInteractiveShell", "Shell"):
+                    return True
+                if hasattr(ip, "kernel"):
+                    return True
+                if "IPKernelApp" in getattr(ip, "config", {}):
+                    return True
+    except Exception:
+        pass
+    return False
 
 
 class Crossword:
@@ -534,6 +555,7 @@ class Crossword:
         allow_repeats: bool = False,
         upweight_diverse_letters: bool = False,
         show_progress: bool = True,
+        progress_callback: Any | None = None,
     ) -> Crossword | None:
         """Searches for a possible fill, and returns the result as a new Crossword
         object. Backed by the native Rust backtracking solver.
@@ -548,12 +570,84 @@ class Crossword:
                 (J, Z, Q, X, etc.) during crossing candidate evaluation.
                 Defaults to False.
             show_progress: Whether to display live in-progress grid updates
-                in the terminal for long-running searches (>100ms). Defaults to True.
+                for long-running searches (>100ms). Automatically adapts to
+                Jupyter/Colab notebooks and terminal registers. Defaults to True.
+            progress_callback: An optional custom callback invoked on progress updates with
+                signature `(grid_str, elapsed_secs, states_visited, is_final, is_solved)`.
 
         Returns:
             The filled Crossword, or None if no solution found / timed out.
         """
         wl = word_list if word_list is not None else self.word_list
+
+        cb = progress_callback
+        if cb is None and show_progress:
+            if _is_notebook():
+
+                def _nb_progress(
+                    grid_str: str,
+                    elapsed: float,
+                    states: int,
+                    is_final: bool,
+                    is_solved: bool,
+                ) -> None:
+                    try:
+                        ipy_disp = importlib.import_module("IPython.display")
+                        clear_output = getattr(ipy_disp, "clear_output", None)
+                        if clear_output is not None:
+                            clear_output(wait=True)
+                        if is_final:
+                            status = (
+                                f"Solved in {elapsed:.3f}s ({states} states explored)"
+                                if is_solved
+                                else f"Search Exhausted (Time: {elapsed:.3f}s, States: {states})"
+                            )
+                        else:
+                            status = f"Fill in Progress [Elapsed: {elapsed:.2f}s | States: {states}]"
+                        print(
+                            f"=== Crossword {status} ===\n{grid_str}",
+                            flush=True,
+                        )
+                    except Exception:
+                        pass
+
+                cb = _nb_progress
+            else:
+                displayed_lines = [0]
+
+                def _term_progress(
+                    grid_str: str,
+                    elapsed: float,
+                    states: int,
+                    is_final: bool,
+                    is_solved: bool,
+                ) -> None:
+                    if is_final:
+                        status = (
+                            f"Solved in {elapsed:.3f}s ({states} states explored)"
+                            if is_solved
+                            else f"Search Exhausted (Time: {elapsed:.3f}s, States: {states})"
+                        )
+                    else:
+                        status = f"Fill in Progress [Elapsed: {elapsed:.2f}s | States: {states}]"
+
+                    frame = f"=== Crossword {status} ===\n{grid_str}\n"
+                    new_lines = frame.count("\n")
+                    if displayed_lines[0] > 0:
+                        sys.stderr.write(f"\x1b[{displayed_lines[0]}A\r\x1b[J")
+                    else:
+                        sys.stderr.write("\x1b[?25l")
+
+                    if is_final:
+                        sys.stderr.write(f"{frame}\x1b[?25h")
+                        displayed_lines[0] = 0
+                    else:
+                        sys.stderr.write(frame)
+                        displayed_lines[0] = new_lines
+                    sys.stderr.flush()
+
+                cb = _term_progress
+
         filled_inner = self._inner.fill(
             wl._inner,
             timeout=timeout,
@@ -561,7 +655,7 @@ class Crossword:
             score_filter=score_filter,
             allow_repeats=allow_repeats,
             upweight_diverse_letters=upweight_diverse_letters,
-            show_progress=show_progress,
+            progress_callback=cb,
         )
         if filled_inner is not None:
             return Crossword(
