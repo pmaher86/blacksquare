@@ -218,6 +218,7 @@ impl CrosswordCore {
         temperature: f64,
         score_filter: Option<f64>,
         allow_repeats: bool,
+        upweight_diverse_letters: bool,
     ) -> Option<CrosswordCore> {
         let effective_word_list = if let Some(thresh) = score_filter {
             Arc::new(word_list.score_filter(thresh))
@@ -251,6 +252,7 @@ impl CrosswordCore {
                 timeout_secs,
                 temperature,
                 allow_repeats,
+                upweight_diverse_letters,
                 &mut dead_end_states,
                 &mut used_words,
             ) {
@@ -269,6 +271,7 @@ impl CrosswordCore {
         timeout_secs: Option<f64>,
         temperature: f64,
         allow_repeats: bool,
+        upweight_diverse_letters: bool,
         dead_end_states: &mut AHashSet<u64>,
         used_words: &mut AHashSet<String>,
     ) -> bool {
@@ -380,7 +383,12 @@ impl CrosswordCore {
 
                             let mut weights = [0.0f64; 26];
                             for i in 0..26 {
-                                weights[i] = cross_letter_scores[i] * INVERSE_CHARACTER_FREQUENCIES[i];
+                                if upweight_diverse_letters {
+                                    weights[i] = cross_letter_scores[i]
+                                        * INVERSE_CHARACTER_FREQUENCIES[i];
+                                } else {
+                                    weights[i] = cross_letter_scores[i];
+                                }
                             }
                             open_positions.push(idx);
                             letter_weights_per_pos.push(weights);
@@ -421,19 +429,7 @@ impl CrosswordCore {
             .map(|&(r, c)| xw.grid.get_cell(r, c).value.clone())
             .collect();
 
-        // 7. Check if placing a word splits the subgraph into smaller components
-        let first_word_bytes = part.get_word_bytes(candidate_indices[0]);
-        for (i, &(r, c)) in slot.cell_indices.iter().enumerate() {
-            xw.grid.get_cell_mut(r, c).value = CellValue::Letter(first_word_bytes[i] as char);
-        }
-        let new_subgraphs: Vec<Vec<WordIndex>> = xw
-            .grid
-            .get_open_subgrids()
-            .into_iter()
-            .filter(|sub| sub.iter().all(|w| active_subgraph.contains(w)))
-            .collect();
-
-        // 8. Try candidate words
+        // 7. Try candidate words
         'candidate_loop: for &word_idx in &candidate_indices {
             let word_bytes = part.get_word_bytes(word_idx);
             let word_str = part.get_word_str(word_idx);
@@ -476,25 +472,18 @@ impl CrosswordCore {
                 used_words.insert(word_str.to_string());
             }
 
-            let mut all_solved = true;
-            for new_sub in &new_subgraphs {
-                if !Self::solve_subgraph(
-                    xw,
-                    new_sub,
-                    word_list,
-                    start_time,
-                    timeout_secs,
-                    temperature,
-                    allow_repeats,
-                    dead_end_states,
-                    used_words,
-                ) {
-                    all_solved = false;
-                    break;
-                }
-            }
-
-            if all_solved {
+            if Self::solve_subgraph(
+                xw,
+                active_subgraph,
+                word_list,
+                start_time,
+                timeout_secs,
+                temperature,
+                allow_repeats,
+                upweight_diverse_letters,
+                dead_end_states,
+                used_words,
+            ) {
                 return true;
             }
 
@@ -510,13 +499,390 @@ impl CrosswordCore {
         dead_end_states.insert(state_hash);
         false
     }
+
+    pub fn check(
+        &self,
+        symmetry: Option<Symmetry>,
+        min_word_length: usize,
+        allow_duplicates: bool,
+        require_connected: bool,
+        require_filled: bool,
+    ) -> (bool, Vec<String>, Vec<String>) {
+        let mut errors: Vec<String> = Vec::new();
+        let warnings: Vec<String> = Vec::new();
+
+        let num_rows = self.grid.num_rows;
+        let num_cols = self.grid.num_cols;
+
+        // 1. Across segment length check
+        for r in 0..num_rows {
+            let mut col_start: Option<usize> = None;
+            for c in 0..=num_cols {
+                let is_white = c < num_cols && !self.grid.is_black(r, c);
+                if is_white {
+                    if col_start.is_none() {
+                        col_start = Some(c);
+                    }
+                } else if let Some(start) = col_start {
+                    let len = c - start;
+                    if len < min_word_length {
+                        errors.push(format!(
+                            "Row {}, cols {}..{}: Across segment of length {} is shorter than minimum {}.",
+                            r,
+                            start,
+                            c - 1,
+                            len,
+                            min_word_length
+                        ));
+                    }
+                    col_start = None;
+                }
+            }
+        }
+
+        // 2. Down segment length check
+        for c in 0..num_cols {
+            let mut row_start: Option<usize> = None;
+            for r in 0..=num_rows {
+                let is_white = r < num_rows && !self.grid.is_black(r, c);
+                if is_white {
+                    if row_start.is_none() {
+                        row_start = Some(r);
+                    }
+                } else if let Some(start) = row_start {
+                    let len = r - start;
+                    if len < min_word_length {
+                        errors.push(format!(
+                            "Col {}, rows {}..{}: Down segment of length {} is shorter than minimum {}.",
+                            c,
+                            start,
+                            r - 1,
+                            len,
+                            min_word_length
+                        ));
+                    }
+                    row_start = None;
+                }
+            }
+        }
+
+        // 3. Symmetry check
+        let active_sym = symmetry.or(self.symmetry);
+        if let Some(sym) = active_sym {
+            let mut reported_cells: AHashSet<(usize, usize)> = AHashSet::new();
+            for r in 0..num_rows {
+                for c in 0..num_cols {
+                    let is_black = self.grid.is_black(r, c);
+                    let images = sym.apply_cell(r, c, num_rows, num_cols);
+                    for img in images {
+                        let (pr, pc) = img.cell_index;
+                        if pr < num_rows && pc < num_cols {
+                            let partner_is_black = self.grid.is_black(pr, pc);
+                            if is_black != partner_is_black
+                                && !reported_cells.contains(&(r, c))
+                            {
+                                reported_cells.insert((r, c));
+                                errors.push(format!(
+                                    "Symmetry violation ({}) at cell ({}, {}).",
+                                    sym.value(),
+                                    r,
+                                    c
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Duplicate words check
+        if !allow_duplicates {
+            let mut word_occurrences: AHashMap<String, Vec<String>> =
+                AHashMap::new();
+            for (&(dir, num), _slot) in &self.grid.word_slots {
+                if !self.grid.is_word_open((dir, num)) {
+                    if let Some(val) = self.grid.get_word_value((dir, num)) {
+                        let dir_str = match dir {
+                            Direction::Across => "Across",
+                            Direction::Down => "Down",
+                        };
+                        word_occurrences
+                            .entry(val)
+                            .or_default()
+                            .push(format!("{} {}", dir_str, num));
+                    }
+                }
+            }
+
+            let mut sorted_keys: Vec<String> =
+                word_occurrences.keys().cloned().collect();
+            sorted_keys.sort();
+            for val in sorted_keys {
+                let mut locs = word_occurrences.remove(&val).unwrap();
+                if locs.len() > 1 {
+                    locs.sort();
+                    errors.push(format!(
+                        "Duplicate word '{}' reused at {}.",
+                        val,
+                        locs.join(", ")
+                    ));
+                }
+            }
+        }
+
+        // 5. Grid connectivity check
+        if require_connected {
+            let mut open_cells: Vec<(usize, usize)> = Vec::new();
+            for r in 0..num_rows {
+                for c in 0..num_cols {
+                    if !self.grid.is_black(r, c) {
+                        open_cells.push((r, c));
+                    }
+                }
+            }
+
+            if !open_cells.is_empty() {
+                let mut visited: AHashSet<(usize, usize)> =
+                    AHashSet::with_capacity(open_cells.len());
+                let mut queue = vec![open_cells[0]];
+                visited.insert(open_cells[0]);
+
+                while let Some((curr_r, curr_c)) = queue.pop() {
+                    let neighbors = [
+                        (curr_r.wrapping_sub(1), curr_c),
+                        (curr_r + 1, curr_c),
+                        (curr_r, curr_c.wrapping_sub(1)),
+                        (curr_r, curr_c + 1),
+                    ];
+                    for (nr, nc) in neighbors {
+                        if nr < num_rows
+                            && nc < num_cols
+                            && !self.grid.is_black(nr, nc)
+                            && visited.insert((nr, nc))
+                        {
+                            queue.push((nr, nc));
+                        }
+                    }
+                }
+
+                if visited.len() != open_cells.len() {
+                    errors.push(format!(
+                        "Grid is not fully connected: {} open cell(s) are disconnected from the main grid.",
+                        open_cells.len() - visited.len()
+                    ));
+                }
+            }
+        }
+
+        // 6. Filled check
+        if require_filled {
+            let mut open_cell_count = 0;
+            for r in 0..num_rows {
+                for c in 0..num_cols {
+                    if self.grid.get_cell(r, c).is_open() {
+                        open_cell_count += 1;
+                    }
+                }
+            }
+            if open_cell_count > 0 {
+                errors.push(format!(
+                    "Grid contains {} empty / open cell(s).",
+                    open_cell_count
+                ));
+            }
+        }
+
+        (errors.is_empty(), errors, warnings)
+    }
+
+    pub fn stats(&self) -> CrosswordStatsData {
+        let mut across_words = 0;
+        let mut down_words = 0;
+        let mut filled_words = 0;
+        let mut open_words = 0;
+        let mut word_length_counter: AHashMap<usize, usize> = AHashMap::new();
+
+        for (&(dir, num), slot) in &self.grid.word_slots {
+            match dir {
+                Direction::Across => across_words += 1,
+                Direction::Down => down_words += 1,
+            }
+            if self.grid.is_word_open((dir, num)) {
+                open_words += 1;
+            } else {
+                filled_words += 1;
+            }
+            *word_length_counter.entry(slot.length).or_insert(0) += 1;
+        }
+
+        let mut word_length_counts: Vec<(usize, usize)> =
+            word_length_counter.into_iter().collect();
+        word_length_counts.sort_by(|a, b| b.0.cmp(&a.0)); // sort by length descending
+
+        let mut black_squares = 0;
+        let mut open_cells = 0;
+        let mut rebus_count = 0;
+        let mut circled_count = 0;
+        let mut shaded_count = 0;
+        let mut letter_counter: AHashMap<String, usize> = AHashMap::new();
+
+        for cell in &self.grid.cells {
+            if cell.is_black() {
+                black_squares += 1;
+            } else {
+                open_cells += 1;
+                if cell.circled {
+                    circled_count += 1;
+                }
+                if cell.shaded {
+                    shaded_count += 1;
+                }
+                match &cell.value {
+                    CellValue::Rebus { across, down } => {
+                        rebus_count += 1;
+                        if across == down {
+                            *letter_counter
+                                .entry(across.clone())
+                                .or_insert(0) += 1;
+                        } else {
+                            *letter_counter
+                                .entry(format!("{}/{}", across, down))
+                                .or_insert(0) += 1;
+                        }
+                    }
+                    CellValue::Letter(c) => {
+                        *letter_counter.entry(c.to_string()).or_insert(0) += 1;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let mut letter_counts: Vec<(String, usize)> =
+            letter_counter.into_iter().collect();
+        letter_counts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0))); // count desc, then key asc
+
+        CrosswordStatsData {
+            total_words: self.grid.word_slots.len(),
+            across_words,
+            down_words,
+            filled_words,
+            open_words,
+            black_squares,
+            total_cells: self.grid.num_rows * self.grid.num_cols,
+            open_cells,
+            word_length_counts,
+            letter_counts,
+            rebus_count,
+            circled_count,
+            shaded_count,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CrosswordStatsData {
+    pub total_words: usize,
+    pub across_words: usize,
+    pub down_words: usize,
+    pub filled_words: usize,
+    pub open_words: usize,
+    pub black_squares: usize,
+    pub total_cells: usize,
+    pub open_cells: usize,
+    pub word_length_counts: Vec<(usize, usize)>,
+    pub letter_counts: Vec<(String, usize)>,
+    pub rebus_count: usize,
+    pub circled_count: usize,
+    pub shaded_count: usize,
 }
 
 // Simple fast pseudo-random generator for heuristic noise
 static mut SEED: u64 = 0x853c49e6748fea9b;
 fn rand_simple() -> f64 {
     unsafe {
-        SEED = SEED.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        SEED = SEED
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((SEED >> 11) as f64) / ((1u64 << 53) as f64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rust_check_valid_grid() {
+        let xw = CrosswordCore::new(5, 5, Some(Symmetry::Rotational), 450);
+        let (is_valid, errors, _warnings) =
+            xw.check(None, 3, false, true, false);
+        assert!(is_valid);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn test_rust_check_short_word_segment() {
+        let mut xw = CrosswordCore::new(5, 5, None, 450);
+        xw.set_cell(0, 1, CellValue::Black);
+        let (is_valid, errors, _warnings) =
+            xw.check(None, 3, false, true, false);
+        assert!(!is_valid);
+        assert!(errors
+            .iter()
+            .any(|e| e.contains("is shorter than minimum 3")));
+    }
+
+    #[test]
+    fn test_rust_check_symmetry_violation() {
+        let mut xw = CrosswordCore::new(5, 5, None, 450);
+        xw.grid.get_cell_mut(0, 0).value = CellValue::Black;
+        let (is_valid, errors, _warnings) =
+            xw.check(Some(Symmetry::Rotational), 3, false, true, false);
+        assert!(!is_valid);
+        assert!(errors.iter().any(|e| e.contains("Symmetry violation")));
+    }
+
+    #[test]
+    fn test_rust_check_duplicate_words() {
+        let mut xw = CrosswordCore::new(5, 5, None, 450);
+        xw.set_word((Direction::Across, 1), "ALPHA").unwrap();
+        xw.set_word((Direction::Across, 6), "ALPHA").unwrap();
+        let (is_valid, errors, _warnings) =
+            xw.check(None, 3, false, true, false);
+        assert!(!is_valid);
+        assert!(errors.iter().any(|e| e.contains("Duplicate word 'ALPHA'")));
+    }
+
+    #[test]
+    fn test_rust_stats() {
+        let mut xw = CrosswordCore::new(5, 5, Some(Symmetry::Rotational), 450);
+        xw.set_cell(2, 2, CellValue::Black);
+        xw.grid.get_cell_mut(1, 1).circled = true;
+        xw.grid.get_cell_mut(3, 3).shaded = true;
+        xw.set_cell_rebus(4, 4, "STAR".into(), "STAR".into());
+
+        let stats = xw.stats();
+        assert_eq!(stats.total_cells, 25);
+        assert_eq!(stats.black_squares, 1);
+        assert_eq!(stats.open_cells, 24);
+        assert_eq!(stats.total_words, 12);
+        assert_eq!(stats.across_words, 6);
+        assert_eq!(stats.down_words, 6);
+        assert_eq!(stats.rebus_count, 1);
+        assert_eq!(stats.circled_count, 1);
+        assert_eq!(stats.shaded_count, 1);
+    }
+
+    #[test]
+    fn test_rust_fill_upweight_diverse_letters() {
+        let wl = Arc::new(FastWordList::default());
+        let xw = CrosswordCore::new(3, 3, None, 450);
+
+        let filled_default = xw.fill(&wl, Some(5.0), 0.0, None, false, false);
+        assert!(filled_default.is_some());
+
+        let filled_upweighted = xw.fill(&wl, Some(5.0), 0.0, None, false, true);
+        assert!(filled_upweighted.is_some());
     }
 }

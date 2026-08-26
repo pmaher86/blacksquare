@@ -7,7 +7,7 @@ name = "blacksquare"
 description = "A package for creating crossword puzzles"
 authors = [{ name = "Patrick Maher", email = "pmaher86@gmail.com" }]
 readme = "README.md"
-dependencies = ["networkx", "numpy", "pandas", "rich"]
+dependencies = ["numpy", "pandas", "rich"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Rust",
@@ -48,6 +48,9 @@ docs = [
 features = ["pyo3/extension-module"]
 module-name = "blacksquare._blacksquare_rs"
 python-source = "src"
+
+[tool.uv]
+exclude-newer = "3 days"
 
 [tool.ruff]
 line-length = 88

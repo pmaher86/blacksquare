@@ -586,7 +586,7 @@ impl PyCrossword {
         }
     }
 
-    #[pyo3(signature = (word_list, timeout=None, temperature=None, score_filter=None, allow_repeats=None))]
+    #[pyo3(signature = (word_list, timeout=None, temperature=None, score_filter=None, allow_repeats=None, upweight_diverse_letters=None))]
     pub fn fill(
         &self,
         word_list: &PyWordList,
@@ -594,11 +594,13 @@ impl PyCrossword {
         temperature: Option<f64>,
         score_filter: Option<f64>,
         allow_repeats: Option<bool>,
+        upweight_diverse_letters: Option<bool>,
     ) -> Option<PyCrossword> {
         let temp = temperature.unwrap_or(0.0);
         let repeats = allow_repeats.unwrap_or(false);
+        let upweight = upweight_diverse_letters.unwrap_or(false);
         self.core
-            .fill(&word_list.inner, timeout, temp, score_filter, repeats)
+            .fill(&word_list.inner, timeout, temp, score_filter, repeats, upweight)
             .map(|core| PyCrossword { core })
     }
 
@@ -656,6 +658,55 @@ impl PyCrossword {
             res.push(row);
         }
         res
+    }
+
+    #[pyo3(signature = (symmetry=None, min_word_length=3, allow_duplicates=false, require_connected=true, require_filled=false))]
+    pub fn check(
+        &self,
+        symmetry: Option<Symmetry>,
+        min_word_length: usize,
+        allow_duplicates: bool,
+        require_connected: bool,
+        require_filled: bool,
+    ) -> (bool, Vec<String>, Vec<String>) {
+        self.core.check(
+            symmetry,
+            min_word_length,
+            allow_duplicates,
+            require_connected,
+            require_filled,
+        )
+    }
+
+    pub fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let s = self.core.stats();
+        let dict = PyDict::new(py);
+        dict.set_item("total_words", s.total_words)?;
+        dict.set_item("across_words", s.across_words)?;
+        dict.set_item("down_words", s.down_words)?;
+        dict.set_item("filled_words", s.filled_words)?;
+        dict.set_item("open_words", s.open_words)?;
+        dict.set_item("black_squares", s.black_squares)?;
+        dict.set_item("total_cells", s.total_cells)?;
+        dict.set_item("open_cells", s.open_cells)?;
+
+        let word_lens_dict = PyDict::new(py);
+        for (len, count) in s.word_length_counts {
+            word_lens_dict.set_item(len, count)?;
+        }
+        dict.set_item("word_length_counts", word_lens_dict)?;
+
+        let letter_counts_dict = PyDict::new(py);
+        for (letter, count) in s.letter_counts {
+            letter_counts_dict.set_item(letter, count)?;
+        }
+        dict.set_item("letter_counts", letter_counts_dict)?;
+
+        dict.set_item("rebus_count", s.rebus_count)?;
+        dict.set_item("circled_count", s.circled_count)?;
+        dict.set_item("shaded_count", s.shaded_count)?;
+
+        Ok(dict)
     }
 }
 

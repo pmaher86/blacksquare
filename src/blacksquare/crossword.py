@@ -33,6 +33,7 @@ from blacksquare.puz import (
     parse_rebus_table,
     serialize_rebus_table,
 )
+from blacksquare.stats import CrosswordStats, ValidationResult
 from blacksquare.symmetry import Symmetry
 from blacksquare.types import (
     CellIndex,
@@ -534,6 +535,7 @@ class Crossword:
         temperature: float = 0.0,
         score_filter: float | None = None,
         allow_repeats: bool = False,
+        upweight_diverse_letters: bool = False,
     ) -> Crossword | None:
         """Searches for a possible fill, and returns the result as a new Crossword
         object. Backed by the native Rust backtracking solver.
@@ -544,6 +546,9 @@ class Crossword:
             temperature: A parameter to control randomness.
             score_filter: A threshold to apply to the word list before filling.
             allow_repeats: Whether to allow duplicate words in the grid.
+            upweight_diverse_letters: Whether to upweight rare/diverse letters
+                (J, Z, Q, X, etc.) during crossing candidate evaluation.
+                Defaults to False.
 
         Returns:
             The filled Crossword, or None if no solution found / timed out.
@@ -555,6 +560,7 @@ class Crossword:
             temperature=temperature,
             score_filter=score_filter,
             allow_repeats=allow_repeats,
+            upweight_diverse_letters=upweight_diverse_letters,
         )
         if filled_inner is not None:
             return Crossword(
@@ -900,6 +906,76 @@ class Crossword:
             </div>
         </div>
         """
+
+    def check(
+        self,
+        symmetry: Symmetry | None = None,
+        *,
+        min_word_length: int = 3,
+        allow_duplicates: bool = False,
+        require_connected: bool = True,
+        require_filled: bool = False,
+        raise_on_error: bool = False,
+    ) -> ValidationResult:
+        """Validates the crossword puzzle against standard crossword rules.
+
+        Checks:
+        a) All word segments are at least `min_word_length` letters (no 1- or 2-letter fragments).
+        b) Symmetry is satisfied (using `self.symmetry` or the provided `symmetry`).
+        c) No words are reused across the puzzle (unless `allow_duplicates=True`).
+        d) Full grid connectivity (all open squares form a single connected component).
+        e) No empty cells if `require_filled=True`.
+        """
+        rust_sym = self._to_rust_sym(symmetry)
+        is_valid, errors, warnings = self._inner.check(
+            rust_sym,
+            min_word_length,
+            allow_duplicates,
+            require_connected,
+            require_filled,
+        )
+
+        result = ValidationResult(is_valid=is_valid, errors=errors, warnings=warnings)
+        if raise_on_error and not result.is_valid:
+            raise ValueError(str(result))
+        return result
+
+    def is_valid(
+        self,
+        symmetry: Symmetry | None = None,
+        *,
+        min_word_length: int = 3,
+        allow_duplicates: bool = False,
+        require_connected: bool = True,
+        require_filled: bool = False,
+    ) -> bool:
+        """Returns True if the crossword passes all validation rules, False otherwise."""
+        return self.check(
+            symmetry=symmetry,
+            min_word_length=min_word_length,
+            allow_duplicates=allow_duplicates,
+            require_connected=require_connected,
+            require_filled=require_filled,
+        ).is_valid
+
+    def stats(self) -> CrosswordStats:
+        """Computes and returns crossword grid statistics."""
+        data = self._inner.stats()
+        return CrosswordStats(
+            total_words=data["total_words"],
+            across_words=data["across_words"],
+            down_words=data["down_words"],
+            black_squares=data["black_squares"],
+            total_cells=data["total_cells"],
+            open_cells=data["open_cells"],
+            word_length_counts=data["word_length_counts"],
+            letter_counts=data["letter_counts"],
+            rebus_count=data["rebus_count"],
+            circled_count=data["circled_count"],
+            shaded_count=data["shaded_count"],
+            filled_words=data["filled_words"],
+            open_words=data["open_words"],
+        )
 
 
 def _parse_word_string_to_cell_values(

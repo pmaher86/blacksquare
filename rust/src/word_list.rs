@@ -575,6 +575,12 @@ impl FastWordList {
     }
 }
 
+impl Default for FastWordList {
+    fn default() -> Self {
+        (*Self::default_embedded()).clone()
+    }
+}
+
 /// Representation of matches from a search query.
 #[derive(Clone)]
 pub enum MatchState {

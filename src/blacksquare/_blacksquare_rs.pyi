@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from enum import Enum
+from typing import Any
 
 class Direction(Enum):
     Across = 0
@@ -139,5 +140,15 @@ class PyCrossword:
         temperature: float = 0.0,
         score_filter: float | None = None,
         allow_repeats: bool = False,
+        upweight_diverse_letters: bool = False,
     ) -> PyCrossword | None: ...
+    def check(
+        self,
+        symmetry: Symmetry | None = None,
+        min_word_length: int = 3,
+        allow_duplicates: bool = False,
+        require_connected: bool = True,
+        require_filled: bool = False,
+    ) -> tuple[bool, list[str], list[str]]: ...
+    def stats(self) -> dict[str, Any]: ...
     def copy(self) -> PyCrossword: ...
