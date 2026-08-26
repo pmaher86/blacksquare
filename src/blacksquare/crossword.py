@@ -8,9 +8,6 @@ from secrets import token_hex
 from typing import Any, BinaryIO, overload
 
 import numpy as np
-import rich.box
-from rich.console import Console
-from rich.table import Table
 
 from blacksquare._blacksquare_rs import (
     Direction as RustDirection,
@@ -807,49 +804,23 @@ class Crossword:
         merger.write(str(filename))
         merger.close()
 
-    def _text_grid(self, numbers: bool = False) -> Table:
-        """Returns a rich Table that displays the crossword."""
-        superscripts = ("⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹")
-        table = Table(
-            box=rich.box.SQUARE,
-            show_header=False,
-            show_lines=True,
-            width=4 * self.num_cols + 1,
-            padding=0,
-        )
-        for c in range(self.num_cols):
-            table.add_column(justify="left", width=3)
-        for r in range(self.num_rows):
-            strings = []
-            for c in range(self.num_cols):
-                cell = self[r, c]
-                if cell == SpecialCellValue.BLACK:
-                    strings.append(cell.str * 3)
-                else:
-                    if numbers:
-                        strings.append(str(cell.number) if cell.number else "")
-                    else:
-                        prefix = superscripts[cell.number % 10] if cell.number else " "
-                        suffix = "*" if cell.shaded or cell.circled else " "
-                        strings.append(f"{prefix}{cell.str}{suffix}")
-            table.add_row(*strings)
-
-        return table
-
     def to_text_grid(self, numbers: bool = False) -> str:
-        """Returns a formatted text table representation of the crossword grid from Rust."""
+        """Returns a formatted text table representation of the crossword grid."""
         return self._inner.to_text_grid(numbers)
+
+    def _text_grid(self, numbers: bool = False) -> str:
+        """Returns a formatted text table representation of the crossword grid."""
+        return self.to_text_grid(numbers)
 
     def pprint(self, numbers: bool = False) -> None:
         """Prints a formatted string representation of the crossword fill."""
-        console = Console()
-        console.print(self._text_grid(numbers))
+        print(self.to_text_grid(numbers))
 
     def _repr_mimebundle_(
         self, include: Iterable[str], exclude: Iterable[str], **kwargs: Any
     ) -> dict[str, str]:
         html = self._grid_html()
-        text = self._text_grid()._repr_mimebundle_([], [])["text/plain"]
+        text = self.to_text_grid()
         data = {"text/plain": text, "text/html": html}
         if include:
             data = {k: v for (k, v) in data.items() if k in include}
