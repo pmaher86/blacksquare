@@ -583,6 +583,7 @@ class Crossword:
         cb = progress_callback
         if cb is None and show_progress:
             if _is_notebook():
+                handle = None
 
                 def _nb_progress(
                     grid_str: str,
@@ -591,23 +592,30 @@ class Crossword:
                     is_final: bool,
                     is_solved: bool,
                 ) -> None:
+                    nonlocal handle
                     try:
                         ipy_disp = importlib.import_module("IPython.display")
-                        clear_output = getattr(ipy_disp, "clear_output", None)
-                        if clear_output is not None:
-                            clear_output(wait=True)
+                        display = getattr(ipy_disp, "display", None)
+                        html_cls = getattr(ipy_disp, "HTML", None)
+                        pretty = getattr(ipy_disp, "Pretty", None)
+                        if display is None:
+                            return
+
                         if is_final:
-                            status = (
-                                f"Solved in {elapsed:.3f}s ({states} states explored)"
-                                if is_solved
-                                else f"Search Exhausted (Time: {elapsed:.3f}s, States: {states})"
-                            )
+                            if handle is not None:
+                                empty = html_cls("") if html_cls is not None else ""
+                                handle.update(empty)
+                                handle = None
+                            return
+
+                        status = f"Fill in Progress [Elapsed: {elapsed:.2f}s | States: {states}]"
+                        text = f"=== Crossword {status} ===\n{grid_str}"
+                        content = pretty(text) if pretty is not None else text
+
+                        if handle is None:
+                            handle = display(content, display_id=True)
                         else:
-                            status = f"Fill in Progress [Elapsed: {elapsed:.2f}s | States: {states}]"
-                        print(
-                            f"=== Crossword {status} ===\n{grid_str}",
-                            flush=True,
-                        )
+                            handle.update(content)
                     except Exception:
                         pass
 
@@ -623,27 +631,37 @@ class Crossword:
                     is_solved: bool,
                 ) -> None:
                     if is_final:
-                        status = (
-                            f"Solved in {elapsed:.3f}s ({states} states explored)"
-                            if is_solved
-                            else f"Search Exhausted (Time: {elapsed:.3f}s, States: {states})"
-                        )
-                    else:
-                        status = f"Fill in Progress [Elapsed: {elapsed:.2f}s | States: {states}]"
+                        if displayed_lines[0] > 0:
+                            sys.stderr.write(
+                                f"\x1b[{displayed_lines[0]}A\r\x1b[0J\x1b[?25h"
+                            )
+                            sys.stderr.flush()
+                            displayed_lines[0] = 0
+                        return
 
-                    frame = f"=== Crossword {status} ===\n{grid_str}\n"
-                    new_lines = frame.count("\n")
-                    if displayed_lines[0] > 0:
-                        sys.stderr.write(f"\x1b[{displayed_lines[0]}A\r\x1b[J")
-                    else:
-                        sys.stderr.write("\x1b[?25l")
+                    status = (
+                        f"Fill in Progress [Elapsed: {elapsed:.2f}s | States: {states}]"
+                    )
+                    header = f"=== Crossword {status} ==="
+                    lines = [header] + grid_str.splitlines()
+                    new_count = len(lines)
 
-                    if is_final:
-                        sys.stderr.write(f"{frame}\x1b[?25h")
-                        displayed_lines[0] = 0
+                    buf = []
+                    if displayed_lines[0] == 0:
+                        buf.append("\x1b[?25l")
                     else:
-                        sys.stderr.write(frame)
-                        displayed_lines[0] = new_lines
+                        buf.append(f"\x1b[{displayed_lines[0]}A\r")
+
+                    for line in lines:
+                        buf.append(f"\x1b[K{line}\n")
+
+                    if displayed_lines[0] > new_count:
+                        for _ in range(displayed_lines[0] - new_count):
+                            buf.append("\x1b[K\n")
+                        buf.append(f"\x1b[{displayed_lines[0] - new_count}A\r")
+
+                    displayed_lines[0] = new_count
+                    sys.stderr.write("".join(buf))
                     sys.stderr.flush()
 
                 cb = _term_progress
