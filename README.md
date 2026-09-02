@@ -1,5 +1,5 @@
 # Blacksquare
-![Build Status](https://github.com/pmaher86/blacksquare/actions/workflows/build-and-test.yaml/badge.svg) ![Documentation Status](https://readthedocs.org/projects/blacksquare/badge/?version=latest)
+[![Build Status](https://github.com/pmaher86/blacksquare/actions/workflows/build-and-test.yaml/badge.svg)](https://github.com/pmaher86/blacksquare/actions/workflows/build-and-test.yaml) [![Documentation](https://github.com/pmaher86/blacksquare/actions/workflows/docs.yaml/badge.svg)](https://pmaher86.github.io/blacksquare/) [![Python Versions](https://img.shields.io/pypi/pyversions/blacksquare.svg)](https://pypi.org/project/blacksquare/)
 
 Blacksquare is a Python package for crossword creators. It aims to be an intuitive interface for working with crossword puzzles programmatically. It features high-performance grid solving powered by a Rust backend, rich HTML rendering that plugs nicely into Jupyter notebooks, native Across Lite (.puz) file import and export (with support for rebuses and circles), and .pdf export in the [New York Times submission format](https://www.nytimes.com/puzzles/submissions/crossword) (requires the [pdf] extra).
 
