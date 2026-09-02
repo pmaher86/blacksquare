@@ -2,7 +2,7 @@
 
 ## Across Lite (.puz) Files
 
-`blacksquare` can import and export `.puz` crossword files using [puzpy](https://github.com/alexdej/puzpy):
+`blacksquare` can import and export `.puz` crossword files:
 
 ```python
 from blacksquare import Crossword
@@ -49,3 +49,5 @@ In a Jupyter notebook or Google Colab environment, crosswords render automatical
 # In a Jupyter notebook cell:
 xw
 ```
+
+![Jupyter notebook rendering](../assets/jupyter.png)
